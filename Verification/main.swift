@@ -159,6 +159,54 @@ struct Verify {
         let landedSum = valueBatch.itemList.reduce(Decimal(0)) { $0 + $1.landedCostCNY }
         check("落地成本合计 = 货值 + 运费", landedSum == baseSum + 120, "\(landedSum) vs \(baseSum + 120)")
 
+
+        // MARK: 统计口径
+
+        let statsSchema = Schema([Item.self, Order.self, Batch.self])
+        let statsConfig = ModelConfiguration(schema: statsSchema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let statsContainer = try ModelContainer(for: statsSchema, configurations: [statsConfig])
+        let statsContext = statsContainer.mainContext
+
+        func makeItem(_ serial: String, cost: Decimal, list: Decimal, days: Int, sold: Bool = false) -> Item {
+            let item = Item(
+                serialNumber: serial, modelName: "iPhone 17",
+                costAmount: cost, currency: .cny, exchangeRate: 1,
+                shippingCNY: 0, listPriceCNY: list
+            )
+            item.inboundAt = calendar.date(byAdding: .day, value: -days, to: .now)!
+            if sold {
+                item.status = .sold
+                item.soldAt = .now
+                item.soldPriceCNY = list
+            }
+            statsContext.insert(item)
+            return item
+        }
+
+        _ = makeItem("ST001", cost: 7000, list: 8999, days: 5)
+        _ = makeItem("ST002", cost: 5000, list: 5999, days: 45)
+        _ = makeItem("ST003", cost: 4000, list: 4999, days: 120)
+        _ = makeItem("ST004", cost: 7220, list: 8999, days: 20, sold: true)
+        _ = makeItem("ST005", cost: 3000, list: 3599, days: 10, sold: true)
+        try statsContext.save()
+
+        let allStatsItems = try statsContext.fetch(FetchDescriptor<Item>())
+        let stats = InventoryStatistics(items: allStatsItems)
+
+        check("在库台数 = 3", stats.inStockCount == 3, "\(stats.inStockCount)")
+        check("库存成本合计 = 16000", stats.stockCostValue == 16000, "\(stats.stockCostValue)")
+        check("库存标价合计 = 19997", stats.stockListedValue == 19997, "\(stats.stockListedValue)")
+        check("今日成交 2 台", stats.todayCount == 2, "\(stats.todayCount)")
+        check("今日销售额 = 12598", stats.todayRevenue == 12598, "\(stats.todayRevenue)")
+        check("今日毛利 = 2378", stats.todayProfit == 2378, "\(stats.todayProfit)")
+
+        let counts = stats.agingBuckets.map(\.count)
+        check("库龄分档 1/1/0/1", counts == [1, 1, 0, 1], "\(counts)")
+        check("呆滞品 1 台", stats.overdueItems.count == 1, "\(stats.overdueItems.count)")
+        check("呆滞品为 ST003", stats.overdueItems.first?.serialNumber == "ST003")
+        check("呆滞占用成本 = 4000", stats.overdueValue == 4000, "\(stats.overdueValue)")
+        check("库存潜在毛利 = 3997", stats.stockPotentialProfit == 3997, "\(stats.stockPotentialProfit)")
+
         // MARK: 非法输入
 
         var bad = IntakeDraft()
