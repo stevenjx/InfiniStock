@@ -69,7 +69,7 @@ App Intents（全局搜索序列号）、Spotlight 索引（`IndexedEntity`）�
 ```bash
 ./scripts/build.sh                  # 构建 build/InfiniStock.app（Debug）
 ./scripts/build.sh Release          # 构建 Release
-./scripts/verify.sh                 # 业务层自检（56 项断言，不开界面）
+./scripts/verify.sh                 # 业务层自检（66 项断言，不开界面）
 open build/InfiniStock.app          # 直接跑
 ```
 
