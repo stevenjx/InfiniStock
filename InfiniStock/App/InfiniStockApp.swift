@@ -7,6 +7,7 @@ struct InfiniStockApp: App {
     private let cloudSyncEnabled: Bool
 
     @State private var appState = AppState()
+    @State private var showingSettings = false
 
     init() {
         let store = AppStore.shared
@@ -33,6 +34,17 @@ struct InfiniStockApp: App {
                     appState.showingSearch = true
                 }
                 .keyboardShortcut("f", modifiers: .command)
+
+                Button("统计") {
+                    appState.showingDashboard = true
+                }
+                .keyboardShortcut("d", modifiers: [.command, .shift])
+            }
+            CommandGroup(replacing: .appSettings) {
+                Button("设置…") {
+                    appState.showingSettings = true
+                }
+                .keyboardShortcut(",", modifiers: .command)
             }
         }
 

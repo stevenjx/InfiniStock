@@ -8,6 +8,8 @@ enum InventoryError: LocalizedError {
     case notInStock(String)
     case emptySelection
     case invalidAmount(String)
+    case invalidDiscount
+    case discountTooLarge(Decimal)
 
     var errorDescription: String? {
         switch self {
@@ -17,6 +19,8 @@ enum InventoryError: LocalizedError {
         case .notInStock(let serial): "序列号 \(serial) 不在库，无法出库"
         case .emptySelection: "请先选择要出库的机器"
         case .invalidAmount(let field): "\(field) 不是有效数字"
+        case .invalidDiscount: "折扣与抹零不能为负数"
+        case .discountTooLarge(let subtotal): "折扣加抹零超过商品小计 \(subtotal.cny)"
         }
     }
 }
@@ -97,7 +101,13 @@ enum InventoryService {
         return item
     }
 
-    /// 出库：校验在库 → 写成交价与时间 → 生成订单。单价缺省时用各机标价。
+    /// 出库的一行：一台机器 + 它的成交价（可逐台改价）
+    struct SaleLine {
+        let item: Item
+        let price: Decimal
+    }
+
+    /// 兼容旧调用：统一单价。多台时传 nil 即按各台标价。
     @discardableResult
     static func sell(
         items: [Item],
@@ -106,35 +116,71 @@ enum InventoryService {
         customerContact: String,
         in context: ModelContext
     ) throws -> Order {
-        guard !items.isEmpty else { throw InventoryError.emptySelection }
-        for item in items where item.status != .inStock {
-            throw InventoryError.notInStock(item.serialNumber)
+        try sell(
+            lines: items.map { SaleLine(item: $0, price: unitPrice ?? $0.listPriceCNY) },
+            customerName: customerName,
+            customerContact: customerContact,
+            discountCNY: 0,
+            roundingCNY: 0,
+            paymentMethod: .cash,
+            in: context
+        )
+    }
+
+    /// 出库：校验在库 → 逐台写成交价 → 计算折扣与毛利 → 生成连续单号
+    @discardableResult
+    static func sell(
+        lines: [SaleLine],
+        customerName: String,
+        customerContact: String,
+        discountCNY: Decimal,
+        roundingCNY: Decimal,
+        paymentMethod: PaymentMethod,
+        in context: ModelContext,
+        now: Date = .now
+    ) throws -> Order {
+        guard !lines.isEmpty else { throw InventoryError.emptySelection }
+        for line in lines where line.item.status != .inStock {
+            throw InventoryError.notInStock(line.item.serialNumber)
         }
+        guard discountCNY >= 0, roundingCNY >= 0 else { throw InventoryError.invalidDiscount }
+
+        let subtotal = lines.reduce(Decimal(0)) { $0 + $1.price }.rounded(2)
+        guard discountCNY + roundingCNY <= subtotal else { throw InventoryError.discountTooLarge(subtotal) }
+
+        let year = Calendar.current.component(.year, from: now)
+        let sequence = try OrderNumberFactory.nextSequence(for: year, in: context)
 
         let order = Order()
-        order.number = OrderNumberFactory.next()
+        order.sequenceYear = year
+        order.sequenceNumber = sequence
+        order.number = OrderNumberFactory.make(year: year, sequence: sequence)
         order.customerName = customerName.trimmingCharacters(in: .whitespacesAndNewlines)
         order.customerContact = customerContact.trimmingCharacters(in: .whitespacesAndNewlines)
-        order.createdAt = .now
+        order.createdAt = now
         order.originDeviceID = DeviceIdentity.current
+        order.paymentMethod = paymentMethod
+        order.subtotalCNY = subtotal
+        order.discountCNY = discountCNY.rounded(2)
+        order.roundingCNY = roundingCNY.rounded(2)
         context.insert(order)
 
-        var total: Decimal = 0
-        var profit: Decimal = 0
-        for item in items {
-            item.status = .sold
-            item.soldAt = .now
-            item.soldPriceCNY = unitPrice ?? item.listPriceCNY
-            item.order = order
-            total += item.soldPriceCNY
-            profit += item.soldPriceCNY - item.landedCostCNY
+        let payable = (subtotal - discountCNY - roundingCNY).rounded(2)
+        var cost: Decimal = 0
+        for line in lines {
+            line.item.status = .sold
+            line.item.soldAt = now
+            line.item.soldPriceCNY = line.price
+            line.item.order = order
+            cost += line.item.landedCostCNY
         }
 
-        order.totalCNY = total.rounded(2)
-        order.profitCNY = profit.rounded(2)
+        // 毛利按「实收 − 总成本」算，折扣必须计入，否则毛利虚高
+        order.totalCNY = payable
+        order.profitCNY = (payable - cost).rounded(2)
 
         try context.save()
-        items.forEach(SpotlightIndexer.index)
+        lines.forEach { SpotlightIndexer.index($0.item) }
         return order
     }
 

@@ -32,7 +32,7 @@ struct InventoryStatistics {
         return (todayProfit / todayRevenue * 100).rounded(1)
     }
 
-    init(items: [Item], now: Date = .now, calendar: Calendar = .current) {
+    init(items: [Item], orders: [Order] = [], now: Date = .now, calendar: Calendar = .current) {
         let inStock = items.filter { $0.status == .inStock }
         inStockCount = inStock.count
         stockCostValue = inStock.reduce(Decimal(0)) { $0 + $1.landedCostCNY }
@@ -43,8 +43,19 @@ struct InventoryStatistics {
             return calendar.isDate(soldAt, inSameDayAs: now)
         }
         todayCount = soldToday.count
-        todayRevenue = soldToday.reduce(Decimal(0)) { $0 + $1.soldPriceCNY }
-        todayProfit = soldToday.reduce(Decimal(0)) { $0 + $1.grossProfitCNY }
+
+        // 金额以单据为准：折扣与抹零只记在单据上，按机器累加会虚报收入。
+        // 没有单据的历史数据（早期版本）才退回按机器累加。
+        let validOrdersToday = orders.filter { order in
+            !order.isVoided && calendar.isDate(order.createdAt, inSameDayAs: now)
+        }
+        if validOrdersToday.isEmpty {
+            todayRevenue = soldToday.reduce(Decimal(0)) { $0 + $1.soldPriceCNY }
+            todayProfit = soldToday.reduce(Decimal(0)) { $0 + $1.grossProfitCNY }
+        } else {
+            todayRevenue = validOrdersToday.reduce(Decimal(0)) { $0 + $1.totalCNY }
+            todayProfit = validOrdersToday.reduce(Decimal(0)) { $0 + $1.profitCNY }
+        }
 
         let buckets: [(String, ClosedRange<Int>)] = [
             ("0-30 天", 0...30),

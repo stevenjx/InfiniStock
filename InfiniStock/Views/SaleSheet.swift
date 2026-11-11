@@ -1,44 +1,58 @@
 import SwiftUI
 import SwiftData
 
-/// 出库单。单台时可改成交价，多台时按各台标价合计，避免批量改价造成误操作。
+/// 出库单。逐台改价 + 折扣 + 抹零 + 收款方式。
 struct SaleSheet: View {
     let items: [Item]
 
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
 
-    @State private var priceText: String
+    @State private var priceTexts: [PersistentIdentifier: String]
     @State private var customerName = ""
     @State private var customerContact = ""
+    @State private var discountText = ""
+    @State private var roundingText = ""
+    @State private var paymentMethod: PaymentMethod = .cash
     @State private var errorMessage: String?
 
     init(items: [Item]) {
         self.items = items
-        let initial = items.count == 1 ? Money.text(items[0].listPriceCNY) : ""
-        _priceText = State(initialValue: items[0].listPriceCNY > 0 ? initial : "")
+        var initial: [PersistentIdentifier: String] = [:]
+        for item in items {
+            initial[item.id] = item.listPriceCNY > 0 ? Money.text(item.listPriceCNY) : ""
+        }
+        _priceTexts = State(initialValue: initial)
     }
 
-    private var isBatch: Bool { items.count > 1 }
-
-    private var revenue: Decimal {
-        isBatch ? items.reduce(0) { $0 + $1.listPriceCNY } : (Money.parse(priceText) ?? 0)
+    private var subtotal: Decimal {
+        items.reduce(Decimal(0)) { $0 + (priceTexts[$1.id].flatMap(Money.parse) ?? 0) }
     }
+
+    private var discount: Decimal { Money.parse(discountText) ?? 0 }
+    private var rounding: Decimal { Money.parse(roundingText) ?? 0 }
+    private var payable: Decimal { subtotal - discount - rounding }
 
     private var landedTotal: Decimal {
-        items.reduce(0) { $0 + $1.landedCostCNY }
+        items.reduce(Decimal(0)) { $0 + $1.landedCostCNY }
     }
 
-    private var profit: Decimal {
-        revenue - landedTotal
+    private var profit: Decimal { payable - landedTotal }
+
+    private var hasInvalidPrice: Bool {
+        items.contains { priceTexts[$0.id].flatMap(Money.parse) == nil }
+    }
+
+    private var discountInvalid: Bool {
+        discount < 0 || rounding < 0 || discount + rounding > subtotal
     }
 
     var body: some View {
         NavigationStack {
             Form {
-                Section(isBatch ? "待出库 \(items.count) 台" : "机器") {
-                    if isBatch {
-                        ForEach(items) { item in
+                Section(items.count == 1 ? "机器" : "待出库 \(items.count) 台") {
+                    ForEach(items) { item in
+                        VStack(alignment: .leading, spacing: 6) {
                             HStack {
                                 Text(item.modelName)
                                 Text(item.serialNumber)
@@ -46,25 +60,58 @@ struct SaleSheet: View {
                                     .monospaced()
                                     .foregroundStyle(.secondary)
                                 Spacer()
-                                Text(item.listPriceCNY.cny).monospacedDigit()
+                                Text("标价 \(item.listPriceCNY.cny)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            HStack {
+                                Text("成交价")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                TextField("成交价", text: binding(for: item))
+                                    .decimalKeyboard()
+                                    .multilineTextAlignment(.trailing)
+                                Button("按标价") {
+                                    priceTexts[item.id] = Money.text(item.listPriceCNY)
+                                }
+                                .font(.caption)
+                                .buttonStyle(.link)
                             }
                         }
-                    } else if let item = items.first {
-                        LabeledContent("型号", value: item.modelName)
-                        LabeledContent("序列号", value: item.serialNumber)
-                        LabeledContent("落地成本", value: item.landedCostCNY.cny)
+                        .padding(.vertical, 2)
                     }
                 }
 
-                Section("成交") {
-                    if isBatch {
-                        LabeledContent("合计（按标价）", value: revenue.cny)
-                    } else {
-                        TextField("成交价", text: $priceText)
-                            .decimalKeyboard()
-                    }
+                Section("客户") {
                     TextField("客户名称", text: $customerName)
                     TextField("联系方式（可选）", text: $customerContact)
+                }
+
+                Section("收款") {
+                    LabeledContent("商品小计", value: subtotal.cny)
+                    TextField("折扣", text: $discountText)
+                        .decimalKeyboard()
+                    TextField("抹零", text: $roundingText)
+                        .decimalKeyboard()
+                    Picker("收款方式", selection: $paymentMethod) {
+                        ForEach(PaymentMethod.allCases) { method in
+                            Text(method.rawValue).tag(method)
+                        }
+                    }
+                    HStack {
+                        Text("应收合计").fontWeight(.semibold)
+                        Spacer()
+                        Text(payable.cny)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(payable < 0 ? Color.orange : Color.primary)
+                    }
+                    HStack {
+                        Text("大写").font(.caption).foregroundStyle(.secondary)
+                        Spacer()
+                        Text(ChineseAmount.uppercase(payable))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 Section("预估毛利") {
@@ -73,21 +120,21 @@ struct SaleSheet: View {
                             .foregroundStyle(profit < 0 ? Color.orange : Color.primary)
                     }
                     if profit < 0 {
-                        Text("低于总成本，确认前请复核成交价")
+                        Text("低于总成本，确认前请复核成交价与折扣")
                             .font(.caption)
                             .foregroundStyle(.orange)
                     }
                 }
             }
             .formStyle(.grouped)
-            .navigationTitle(isBatch ? "批量出库" : "出库销售")
+            .navigationTitle(items.count == 1 ? "出库销售" : "批量出库")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("确认出库") { confirm() }
-                        .disabled(!isBatch && Money.parse(priceText) == nil)
+                        .disabled(hasInvalidPrice || discountInvalid)
                 }
             }
             .alert("出库失败", isPresented: Binding(
@@ -99,20 +146,39 @@ struct SaleSheet: View {
                 Text(errorMessage ?? "")
             }
         }
-        .frame(minWidth: 460, minHeight: 420)
+        .frame(minWidth: 520, minHeight: 560)
+    }
+
+    private func binding(for item: Item) -> Binding<String> {
+        Binding(
+            get: { priceTexts[item.id] ?? "" },
+            set: { priceTexts[item.id] = $0 }
+        )
     }
 
     private func confirm() {
-        if !isBatch, Money.parse(priceText) == nil {
-            errorMessage = "成交价格式不正确"
+        guard !hasInvalidPrice else {
+            errorMessage = "有成交价格式不正确"
             return
         }
+        guard !discountInvalid else {
+            errorMessage = "折扣加抹零不能超过商品小计"
+            return
+        }
+
+        let lines = items.compactMap { item -> InventoryService.SaleLine? in
+            guard let price = priceTexts[item.id].flatMap(Money.parse) else { return nil }
+            return InventoryService.SaleLine(item: item, price: price)
+        }
+
         do {
             try InventoryService.sell(
-                items: items,
-                unitPrice: isBatch ? nil : Money.parse(priceText),
+                lines: lines,
                 customerName: customerName,
                 customerContact: customerContact,
+                discountCNY: discount,
+                roundingCNY: rounding,
+                paymentMethod: paymentMethod,
                 in: context
             )
             dismiss()

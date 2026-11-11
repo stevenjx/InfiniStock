@@ -4,11 +4,12 @@ import SwiftData
 struct DashboardView: View {
     let cloudSyncEnabled: Bool
     @Query private var items: [Item]
+    @Query private var orders: [Order]
 
     @State private var showingDataSafety = false
 
     private var stats: InventoryStatistics {
-        InventoryStatistics(items: items)
+        InventoryStatistics(items: items, orders: orders)
     }
 
     var body: some View {

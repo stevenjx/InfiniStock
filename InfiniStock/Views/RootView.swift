@@ -106,6 +106,16 @@ struct RootView: View {
         .sheet(isPresented: $appState.showingIntake) {
             IntakeSheet()
         }
+        .sheet(isPresented: $appState.showingSettings) {
+            NavigationStack { SettingsView() }
+                .frame(minWidth: 520, minHeight: 520)
+        }
+        .onChange(of: appState.showingDashboard) { _, showing in
+            if showing {
+                openWindow(id: "dashboard")
+                appState.showingDashboard = false
+            }
+        }
         .sheet(isPresented: $showingSale) {
             SaleSheet(items: selectedItems)
         }

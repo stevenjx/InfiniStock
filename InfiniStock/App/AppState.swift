@@ -6,4 +6,6 @@ import SwiftData
 final class AppState {
     var showingIntake = false
     var showingSearch = false
+    var showingSettings = false
+    var showingDashboard = false
 }

@@ -28,13 +28,22 @@ enum ReceiptPDFRenderer {
         let right = margin + contentWidth
         var y: CGFloat = 56
 
-        text("销售凭证", x: margin, topY: y, font: .boldSystemFont(ofSize: 22), color: .black, in: context)
-        text("SALES RECEIPT", x: margin, topY: y + 30, font: .systemFont(ofSize: 8), color: .gray, in: context)
+        // 抬头：店名优先；未设置时退回通用标题
+        if !document.shopName.isEmpty {
+            text(document.shopName, x: margin, topY: y, font: .boldSystemFont(ofSize: 19), color: .black, in: context)
+            var sub = [document.shopPhone, document.shopAddress].filter { !$0.isEmpty }.joined(separator: "  ·  ")
+            if sub.isEmpty { sub = "销售凭证" }
+            text(sub, x: margin, topY: y + 25, font: .systemFont(ofSize: 9), color: .gray, in: context)
+            text("销售凭证", x: margin, topY: y + 40, font: .systemFont(ofSize: 11), color: .darkGray, in: context)
+        } else {
+            text("销售凭证", x: margin, topY: y, font: .boldSystemFont(ofSize: 22), color: .black, in: context)
+            text("SALES RECEIPT", x: margin, topY: y + 30, font: .systemFont(ofSize: 8), color: .gray, in: context)
+        }
 
         text("单号 \(document.number)", x: right, topY: y + 4, font: .systemFont(ofSize: 10), color: .black, align: .right, in: context)
         text(dateText(document.issuedAt), x: right, topY: y + 20, font: .systemFont(ofSize: 10), color: .gray, align: .right, in: context)
 
-        y += 56
+        y += 68
         line(from: CGPoint(x: margin, y: y), to: CGPoint(x: right, y: y), width: 1, color: .black, in: context)
         y += 18
 
@@ -45,6 +54,9 @@ enum ReceiptPDFRenderer {
         text("联系方式", x: margin + 240, topY: y, font: .systemFont(ofSize: 11), color: .gray, in: context)
         text(document.customerContact.isEmpty ? "—" : document.customerContact,
              x: margin + 300, topY: y, font: .systemFont(ofSize: 11), color: .black, in: context)
+
+        text("收款", x: right - 100, topY: y, font: .systemFont(ofSize: 11), color: .gray, in: context)
+        text(document.paymentMethod, x: right, topY: y, font: .systemFont(ofSize: 11), color: .black, align: .right, in: context)
 
         y += 26
 
@@ -83,9 +95,29 @@ enum ReceiptPDFRenderer {
         }
 
         y += 8
-        text("合计（\(document.lines.count) 台）", x: margin + 6, topY: y, font: .boldSystemFont(ofSize: 10), color: .darkGray, in: context)
-        text(document.total.cny, x: right - 6, topY: y, font: .boldSystemFont(ofSize: 14), color: .black, align: .right, in: context)
-        y += 24
+
+        // 小计 → 折扣 → 抹零 → 应收
+        var amountRows: [(String, String)] = [
+            ("商品小计（\(document.lines.count) 台）", document.subtotal.cny)
+        ]
+        if document.discount > 0 {
+            amountRows.append(("折扣", "−" + document.discount.cny))
+        }
+        if document.rounding > 0 {
+            amountRows.append(("抹零", "−" + document.rounding.cny))
+        }
+
+        for (label, value) in amountRows {
+            text(label, x: right - 200, topY: y, font: .systemFont(ofSize: 10), color: .darkGray, in: context)
+            text(value, x: right - 6, topY: y, font: .systemFont(ofSize: 10), color: .black, align: .right, in: context)
+            y += 18
+        }
+
+        line(from: CGPoint(x: right - 200, y: y - 4), to: CGPoint(x: right, y: y - 4), width: 0.4, color: .lightGray, in: context)
+
+        text("应收合计", x: right - 200, topY: y, font: .boldSystemFont(ofSize: 11), color: .black, in: context)
+        text(document.total.cny, x: right - 6, topY: y - 2, font: .boldSystemFont(ofSize: 14), color: .black, align: .right, in: context)
+        y += 26
         text("大写：\(ChineseAmount.uppercase(document.total))", x: margin + 6, topY: y, font: .systemFont(ofSize: 10), color: .darkGray, in: context)
 
         y += 32
@@ -93,11 +125,14 @@ enum ReceiptPDFRenderer {
         y += 14
 
         let noteFont = NSFont.systemFont(ofSize: 8.5)
-        let notes = [
+        var notes = [
             "1. 本凭证为交易记录，非增值税发票，不可作为税务抵扣凭证。",
-            "2. 请当面验机；非人为故障自签收之日起 7 日内协商处理，人为损坏不在范围内。",
+            "2. 请当面验机；非人为故障自签收之日起 \(document.warrantyDays) 日内协商处理，人为损坏不在范围内。",
             "3. 序列号与成交价以本凭证为准，涂改无效。",
         ]
+        if !document.footnote.isEmpty {
+            notes.insert(document.footnote, at: 0)
+        }
         for note in notes {
             for line in wrap(note, width: contentWidth - 12, font: noteFont) {
                 text(line, x: margin + 6, topY: y, font: noteFont, color: .gray, in: context)
@@ -111,7 +146,7 @@ enum ReceiptPDFRenderer {
 
         // 页脚
         text("由 InfiniStock 生成 · \(dateText(Date()))", x: right, topY: pageSize.height - 44,
-             font: .systemFont(ofSize: 8), color: .lightGray, align: .right, in: context)
+             font: .systemFont(ofSize: 8.5), color: .gray, align: .right, in: context)
     }
 
     // MARK: - 基础图元

@@ -62,12 +62,18 @@ enum BackupService {
                 number: order.number,
                 customerName: order.customerName,
                 customerContact: order.customerContact,
+                subtotalCNY: order.subtotalCNY.plainString,
                 totalCNY: order.totalCNY.plainString,
                 profitCNY: order.profitCNY.plainString,
                 createdAt: order.createdAt,
                 originDeviceID: order.originDeviceID,
                 voidedAt: order.voidedAt,
-                itemSerials: order.itemList.map(\.serialNumber).sorted()
+                itemSerials: order.itemList.map(\.serialNumber).sorted(),
+                discountCNY: order.discountCNY.plainString,
+                roundingCNY: order.roundingCNY.plainString,
+                paymentMethod: order.paymentMethodRaw,
+                sequenceYear: order.sequenceYear,
+                sequenceNumber: order.sequenceNumber
             )
         }
 
@@ -89,7 +95,8 @@ enum BackupService {
             appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev",
             items: itemDTOs,
             orders: orderDTOs,
-            batches: batchDTOs
+            batches: batchDTOs,
+            shopSettings: ShopSettings.load()
         )
     }
 
@@ -214,16 +221,31 @@ enum BackupService {
             itemBySerial[dto.serialNumber] = item
         }
 
+        if let settings = snapshot.shopSettings {
+            settings.save()
+        }
+
         for dto in snapshot.orders {
             let order = Order()
             order.number = dto.number
             order.customerName = dto.customerName
             order.customerContact = dto.customerContact
+            order.subtotalCNY = dto.subtotalCNY.decimalValue
+            order.discountCNY = (dto.discountCNY ?? "0").decimalValue
+            order.roundingCNY = (dto.roundingCNY ?? "0").decimalValue
             order.totalCNY = dto.totalCNY.decimalValue
             order.profitCNY = dto.profitCNY.decimalValue
+            order.paymentMethodRaw = dto.paymentMethod ?? PaymentMethod.cash.rawValue
             order.createdAt = dto.createdAt
             order.originDeviceID = dto.originDeviceID
             order.voidedAt = dto.voidedAt
+            order.sequenceYear = dto.sequenceYear ?? Calendar.current.component(.year, from: dto.createdAt)
+            order.sequenceNumber = dto.sequenceNumber ?? (OrderNumberFactory.parse(dto.number)?.sequence ?? 0)
+            // 旧备份按解析出的序号补齐单号
+            if dto.sequenceNumber == nil, let parsed = OrderNumberFactory.parse(dto.number) {
+                order.sequenceYear = parsed.year
+                order.sequenceNumber = parsed.sequence
+            }
             context.insert(order)
 
             for serial in dto.itemSerials {
@@ -305,7 +327,7 @@ enum BackupService {
         return "infinistock-\(formatter.string(from: date)).json"
     }
 
-    static let retentionCount = 14
+    nonisolated static let retentionCount = 14
 
     /// 只保留最新的 N 份。按文件名倒序即可，文件名内含零填充时间戳。
     static func prune(in folder: URL, keeping limit: Int = retentionCount) {

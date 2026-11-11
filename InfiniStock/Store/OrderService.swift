@@ -1,18 +1,6 @@
 import Foundation
 import SwiftData
 
-enum OrderError: LocalizedError {
-    case alreadyVoided(String)
-    case noItems(String)
-
-    var errorDescription: String? {
-        switch self {
-        case .alreadyVoided(let number): "单据 \(number) 已作废"
-        case .noItems(let number): "单据 \(number) 没有关联机器，无法作废"
-        }
-    }
-}
-
 @MainActor
 enum OrderService {
 

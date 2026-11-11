@@ -460,6 +460,175 @@ struct Verify {
         check("未配置目录时自动备份静默跳过", BackupService.autoBackupIfNeeded(from: source) == nil)
         try? FileManager.default.removeItem(at: liveDir)
 
+
+        // MARK: P1 单号与折扣
+
+        let p1Schema = Schema([Item.self, Order.self, Batch.self])
+        let p1Config = ModelConfiguration(schema: p1Schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let p1Container = try ModelContainer(for: p1Schema, configurations: [p1Config])
+        let p1 = p1Container.mainContext
+
+        func p1Item(_ serial: String, cost: Decimal, list: Decimal) -> Item {
+            let item = Item(
+                serialNumber: serial, modelName: "iPhone 17",
+                costAmount: cost, currency: .cny, exchangeRate: 1,
+                shippingCNY: 0, listPriceCNY: list
+            )
+            p1.insert(item)
+            return item
+        }
+
+        let a = p1Item("P1A", cost: 5000, list: 6999)
+        let b = p1Item("P1B", cost: 4000, list: 5599)
+        let c = p1Item("P1C", cost: 3000, list: 4299)
+
+        // 逐台改价 + 折扣 + 抹零
+        let p1Order = try InventoryService.sell(
+            lines: [
+                .init(item: a, price: Decimal(string: "6800")!),
+                .init(item: b, price: Decimal(string: "5500")!),
+                .init(item: c, price: Decimal(string: "4200")!),
+            ],
+            customerName: "赵六", customerContact: "",
+            discountCNY: 200, roundingCNY: 88, paymentMethod: .transfer,
+            in: p1
+        )
+
+        check("单号为 SO-年-四位序号",
+              p1Order.number.hasPrefix("SO-\(Calendar.current.component(.year, from: .now))-"),
+              p1Order.number)
+        check("首单序号为 0001", p1Order.number.hasSuffix("-0001"), p1Order.number)
+        check("小计 = 16500", p1Order.subtotalCNY == 16500, "\(p1Order.subtotalCNY)")
+        check("应收 = 16500-200-88 = 16212", p1Order.totalCNY == 16212, "\(p1Order.totalCNY)")
+        check("毛利计入折扣", p1Order.profitCNY == 16212 - 12000, "\(p1Order.profitCNY)")
+        check("收款方式保存", p1Order.paymentMethod == .transfer)
+        check("逐台价格分别写入",
+              a.soldPriceCNY == 6800 && b.soldPriceCNY == 5500 && c.soldPriceCNY == 4200,
+              "\(a.soldPriceCNY)/\(b.soldPriceCNY)/\(c.soldPriceCNY)")
+
+        // 第二单、第三单必须连号
+        for serial in ["P1D", "P1E"] {
+            let item = p1Item(serial, cost: 1000, list: 2000)
+            let order = try InventoryService.sell(
+                lines: [.init(item: item, price: 2000)],
+                customerName: "", customerContact: "",
+                discountCNY: 0, roundingCNY: 0, paymentMethod: .cash, in: p1
+            )
+            _ = order
+        }
+        let numbers = try p1.fetch(FetchDescriptor<Order>(sortBy: [SortDescriptor(\.sequenceNumber)])).map(\.number)
+        check("连续三单不跳号", numbers == ["SO-\(Calendar.current.component(.year, from: .now))-0001",
+                                          "SO-\(Calendar.current.component(.year, from: .now))-0002",
+                                          "SO-\(Calendar.current.component(.year, from: .now))-0003"], "\(numbers)")
+
+        // 折扣不能超过小计
+        let over = p1Item("P1F", cost: 100, list: 100)
+        do {
+            _ = try InventoryService.sell(
+                lines: [.init(item: over, price: 100)],
+                customerName: "", customerContact: "",
+                discountCNY: 200, roundingCNY: 0, paymentMethod: .cash, in: p1
+            )
+            check("折扣超小计被拦截", false, "未抛错")
+        } catch {
+            check("折扣超小计被拦截", true)
+        }
+        check("失败的单不占用单号",
+              try p1.fetchCount(FetchDescriptor<Order>()) == 3,
+              "\(try p1.fetchCount(FetchDescriptor<Order>()))")
+
+        // 单号解析兼容旧格式
+        check("可解析新格式", OrderNumberFactory.parse("SO-2026-0007")?.sequence == 7)
+        check("旧格式解析返回 nil", OrderNumberFactory.parse("SO-20260811-2120-042") == nil)
+
+        // MARK: 凭证含店名与折扣
+
+        let shop = ShopSettings(
+            shopName: "星海数码", phone: "0755-12345678",
+            address: "深圳市福田区华强北 1 号", warrantyDays: 15, footnote: "本店售出机器均附验机报告"
+        )
+        let p1Doc = ReceiptDocument(order: p1Order, settings: shop)
+        check("凭证带店名", p1Doc.shopName == "星海数码")
+        check("凭证小计正确", p1Doc.subtotal == 16500, "\(p1Doc.subtotal)")
+        check("凭证折扣正确", p1Doc.discount == 200)
+        check("凭证抹零正确", p1Doc.rounding == 88)
+        check("凭证应收正确", p1Doc.total == 16212)
+        check("凭证带保修天数", p1Doc.warrantyDays == 15)
+
+        if let pdf = ReceiptPDFRenderer.render(p1Doc),
+           let page = PDFDocument(data: pdf)?.page(at: 0),
+           let text = page.string {
+            check("PDF 印出店名", text.contains("星海数码"))
+            check("PDF 印出电话", text.contains("0755-12345678"))
+            check("PDF 印出折扣行", text.contains("折扣") && text.contains("200"))
+            check("PDF 印出抹零行", text.contains("抹零") && text.contains("88"))
+            check("PDF 应收合计正确", text.contains("16,212"))
+            check("PDF 大写与应收一致", text.contains(ChineseAmount.uppercase(16212)))
+            check("PDF 印出收款方式", text.contains("转账"))
+            check("PDF 印出保修 15 天", text.contains("15 日内"))
+            check("PDF 印出附加说明", text.contains("验机报告"))
+            check("PDF 不泄露成本", !text.contains("5000") && !text.contains("毛利"))
+        } else {
+            check("凭证 PDF 生成", false)
+        }
+
+
+        // MARK: 折扣必须进统计
+
+        let statsWithDiscount = InventoryStatistics(
+            items: try p1.fetch(FetchDescriptor<Item>()),
+            orders: try p1.fetch(FetchDescriptor<Order>())
+        )
+        // 今日三单：16500-288 应收、2000、2000
+        check("统计按单据算收入",
+              statsWithDiscount.todayRevenue == Decimal(string: "16212")! + 2000 + 2000,
+              "\(statsWithDiscount.todayRevenue)")
+        check("统计毛利含折扣",
+              statsWithDiscount.todayProfit == Decimal(string: "16212")! - 12000 + 1000 + 1000,
+              "\(statsWithDiscount.todayProfit)")
+
+        // 作废单不进统计
+        let voidable = try p1.fetch(FetchDescriptor<Order>(sortBy: [SortDescriptor(\.sequenceNumber)])).last!
+        try OrderService.void(voidable, in: p1)
+        let afterVoid = InventoryStatistics(
+            items: try p1.fetch(FetchDescriptor<Item>()),
+            orders: try p1.fetch(FetchDescriptor<Order>())
+        )
+        check("作废单不计入收入",
+              afterVoid.todayRevenue == Decimal(string: "16212")! + 2000,
+              "\(afterVoid.todayRevenue)")
+
+
+        // MARK: 备份必须保住折扣与单号序号
+
+        let p1Snapshot = try BackupService.makeSnapshot(from: p1)
+        let p1JSON = try BackupService.jsonData(p1Snapshot)
+        let p1Decoded = try BackupService.decode(p1JSON)
+        let p1TargetConfig = ModelConfiguration(schema: p1Schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let p1TargetContainer = try ModelContainer(for: p1Schema, configurations: [p1TargetConfig])
+        let p1Target = p1TargetContainer.mainContext
+        try BackupService.restore(p1Decoded, into: p1Target)
+
+        let restoredOrders = try p1Target.fetch(FetchDescriptor<Order>(sortBy: [SortDescriptor(\.sequenceNumber)]))
+        check("备份保住折扣", restoredOrders.first?.discountCNY == 200, "\(String(describing: restoredOrders.first?.discountCNY))")
+        check("备份保住抹零", restoredOrders.first?.roundingCNY == 88, "\(String(describing: restoredOrders.first?.roundingCNY))")
+        check("备份保住应收", restoredOrders.first?.totalCNY == 16212)
+        check("备份保住收款方式", restoredOrders.first?.paymentMethod == .transfer)
+        check("备份保住单号序号", restoredOrders.first?.sequenceNumber == 1, "\(String(describing: restoredOrders.first?.sequenceNumber))")
+        check("备份保住单号文本", restoredOrders.first?.number.hasSuffix("-0001") == true)
+
+        // 恢复后继续下单必须接着 0002，不能重号
+        let nextItem = Item(serialNumber: "P1G", modelName: "iPhone 17", costAmount: 100, currency: .cny, exchangeRate: 1, shippingCNY: 0, listPriceCNY: 200)
+        p1Target.insert(nextItem)
+        let nextOrder = try InventoryService.sell(
+            lines: [.init(item: nextItem, price: 200)],
+            customerName: "", customerContact: "",
+            discountCNY: 0, roundingCNY: 0, paymentMethod: .cash, in: p1Target
+        )
+        check("恢复后新单不重号",
+              nextOrder.number.hasSuffix("-0004"),
+              nextOrder.number)
+
         print(failures == 0 ? "\nALL CHECKS PASSED" : "\n\(failures) CHECK(S) FAILED")
         exit(failures == 0 ? 0 : 1)
     }
