@@ -5,6 +5,8 @@ struct DashboardView: View {
     let cloudSyncEnabled: Bool
     @Query private var items: [Item]
 
+    @State private var showingDataSafety = false
+
     private var stats: InventoryStatistics {
         InventoryStatistics(items: items)
     }
@@ -13,6 +15,19 @@ struct DashboardView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 SyncNotice(cloudSyncEnabled: cloudSyncEnabled)
+
+                if BackupService.backupFolder() == nil {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle")
+                        Text("自动备份未启用，数据仅存本机。点右上角「数据安全」设置备份目录。")
+                            .font(.caption)
+                        Spacer()
+                    }
+                    .foregroundStyle(.orange)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(.orange.opacity(0.1), in: .rect(cornerRadius: 8))
+                }
 
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], spacing: 12) {
                     StatCard(title: "在库台数", value: "\(stats.inStockCount)", unit: "台")
@@ -41,6 +56,19 @@ struct DashboardView: View {
             .padding(16)
         }
         .navigationTitle("统计")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    showingDataSafety = true
+                } label: {
+                    Label("数据安全", systemImage: "externaldrive.badge.checkmark")
+                }
+            }
+        }
+        .sheet(isPresented: $showingDataSafety) {
+            NavigationStack { DataSafetyView() }
+                .frame(minWidth: 560, minHeight: 600)
+        }
     }
 
     private var agingSection: some View {

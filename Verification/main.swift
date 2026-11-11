@@ -316,6 +316,150 @@ struct Verify {
               ItemLookup.find(serial: "NOT-EXIST", in: context) == nil)
         check("最近入库列表非空", !ItemLookup.recent(in: context).isEmpty)
 
+
+        // MARK: 备份导出与恢复
+
+        let backupSchema = Schema([Item.self, Order.self, Batch.self])
+        let backupConfig = ModelConfiguration(schema: backupSchema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let sourceContainer = try ModelContainer(for: backupSchema, configurations: [backupConfig])
+        let source = sourceContainer.mainContext
+
+        let srcBatch = Batch()
+        srcBatch.name = "备份批"
+        srcBatch.supplier = "深圳"
+        srcBatch.currency = .usd
+        srcBatch.exchangeRate = 7.1234
+        srcBatch.totalShippingCNY = 333.33
+        srcBatch.allocation = .byValue
+        source.insert(srcBatch)
+
+        for (index, cost) in ["1234.56", "987.65", "0.01"].enumerated() {
+            var d = IntakeDraft()
+            d.serialNumber = "BKP00\(index)"
+            d.modelName = "iPhone 17"
+            d.memory = "8GB"
+            d.storage = "256GB"
+            d.color = "深空黑"
+            d.costAmount = cost
+            d.currency = .usd
+            d.exchangeRate = "7.1234"
+            d.shippingCNY = "0"
+            d.listPriceCNY = "8999.99"
+            _ = try InventoryService.intake(d, batch: srcBatch, in: source)
+        }
+        try source.save()
+
+        let firstItem = try source.fetch(FetchDescriptor<Item>(sortBy: [SortDescriptor(\.serialNumber)])).first!
+        let soldOrder = try InventoryService.sell(
+            items: [firstItem], unitPrice: Decimal(string: "8888.88"),
+            customerName: "王五", customerContact: "13900000000", in: source
+        )
+
+        let expectedItemCount = try source.fetchCount(FetchDescriptor<Item>())
+        let expectedOrderCount = try source.fetchCount(FetchDescriptor<Order>())
+        let expectedBatchCount = try source.fetchCount(FetchDescriptor<Batch>())
+        let expectedCost = try source.fetch(FetchDescriptor<Item>()).reduce(Decimal(0)) { $0 + $1.landedCostCNY }
+        let expectedRevenue = try source.fetch(FetchDescriptor<Item>()).reduce(Decimal(0)) { $0 + $1.soldPriceCNY }
+        let expectedSerials = Set(try source.fetch(FetchDescriptor<Item>()).map(\.serialNumber))
+
+        let snapshot = try BackupService.makeSnapshot(from: source)
+        let json = try BackupService.jsonData(snapshot)
+        check("快照条数与库一致", snapshot.items.count == expectedItemCount, "\(snapshot.items.count)")
+        check("JSON 已生成", json.count > 500, "\(json.count) bytes")
+
+        let restored = try BackupService.decode(json)
+        check("回读版本一致", restored.formatVersion == BackupSnapshot.currentFormatVersion)
+        check("回读条数一致", restored.items.count == expectedItemCount)
+        check("回读单据一致", restored.orders.count == expectedOrderCount)
+        check("回读批次一致", restored.batches.count == expectedBatchCount)
+
+        // 精确到分：这是 P0 的核心验收
+        let restoredItemA = restored.items.first { $0.serialNumber == "BKP000" }!
+        check("金额字符串无损 1234.56", restoredItemA.costAmount == "1234.56", restoredItemA.costAmount)
+        let restoredItemC = restored.items.first { $0.serialNumber == "BKP002" }!
+        check("小额 0.01 无损", restoredItemC.costAmount == "0.01", restoredItemC.costAmount)
+        let restoredOrder = restored.orders.first!
+        check("成交价无损 8888.88", restoredOrder.totalCNY == "8888.88", restoredOrder.totalCNY)
+        check("单据关联序列号", restoredOrder.itemSerials == ["BKP000"], "\(restoredOrder.itemSerials)")
+        check("毛利字段非空", !restoredOrder.profitCNY.isEmpty)
+
+        // 回灌到空库
+        let targetConfig = ModelConfiguration(schema: backupSchema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let targetContainer = try ModelContainer(for: backupSchema, configurations: [targetConfig])
+        let target = targetContainer.mainContext
+        try BackupService.restore(restored, into: target)
+
+        let restoredItems = try target.fetch(FetchDescriptor<Item>())
+        check("恢复后台数一致", restoredItems.count == expectedItemCount, "\(restoredItems.count)")
+        check("恢复后序列号集合一致", Set(restoredItems.map(\.serialNumber)) == expectedSerials)
+        check("恢复后落地成本合计一致",
+              restoredItems.reduce(Decimal(0)) { $0 + $1.landedCostCNY } == expectedCost,
+              "\(restoredItems.reduce(Decimal(0)) { $0 + $1.landedCostCNY }) vs \(expectedCost)")
+        check("恢复后成交额合计一致",
+              restoredItems.reduce(Decimal(0)) { $0 + $1.soldPriceCNY } == expectedRevenue)
+
+        let restoredSoldItem = restoredItems.first { $0.serialNumber == "BKP000" }!
+        check("恢复后状态为已售", restoredSoldItem.status == .sold)
+        check("恢复后单据挂回机器", restoredSoldItem.order?.number == soldOrder.number)
+        check("恢复后批次挂回机器", restoredSoldItem.batch?.name == "备份批")
+        check("恢复后汇率保留四位",
+              restoredSoldItem.batch?.exchangeRate == Decimal(string: "7.1234"),
+              "\(String(describing: restoredSoldItem.batch?.exchangeRate))")
+
+        // 恢复必须覆盖而不是叠加
+        try BackupService.restore(restored, into: target)
+        check("重复恢复不叠加",
+              try target.fetchCount(FetchDescriptor<Item>()) == expectedItemCount,
+              "\(try target.fetchCount(FetchDescriptor<Item>()))")
+
+        // 坏文件必须拒绝
+        do {
+            _ = try BackupService.decode(Data("not json".utf8))
+            check("损坏文件被拒绝", false, "未抛错")
+        } catch {
+            check("损坏文件被拒绝", true)
+        }
+
+        // CSV
+        let csv = try BackupService.csvData(from: source)
+        let csvText = String(decoding: csv, as: UTF8.self)
+        check("CSV 带 BOM 供 Excel 识别", csvText.hasPrefix("\u{FEFF}"))
+        check("CSV 含表头", csvText.contains("序列号") && csvText.contains("落地成本"))
+        // split 会丢掉末尾的空段，所以行数 = 表头 + 机器数
+        check("CSV 行数 = 表头 + 机器数",
+              csvText.split(separator: "\r\n").count == expectedItemCount + 1,
+              "\(csvText.split(separator: "\r\n").count) vs \(expectedItemCount + 1)")
+
+        // 保留策略
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("bkp-prune-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        for index in 0..<20 {
+            let name = String(format: "infinistock-202601%02d-000000.json", index + 1)
+            try Data("{}".utf8).write(to: tempDir.appendingPathComponent(name))
+        }
+        BackupService.prune(in: tempDir, keeping: 14)
+        let remaining = try FileManager.default.contentsOfDirectory(atPath: tempDir.path)
+        check("只保留最近 14 份", remaining.count == 14, "\(remaining.count)")
+        check("保留的是最新的", remaining.contains("infinistock-20260120-000000.json"))
+        check("删掉的是最旧的", !remaining.contains("infinistock-20260101-000000.json"))
+        try? FileManager.default.removeItem(at: tempDir)
+
+
+        // MARK: 备份真文件写入
+
+        let liveDir = FileManager.default.temporaryDirectory.appendingPathComponent("bkp-live-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: liveDir, withIntermediateDirectories: true)
+        let written = try BackupService.writeBackup(from: source, into: liveDir)
+        check("备份文件已落盘", FileManager.default.fileExists(atPath: written.path))
+        check("备份文件名符合规范", written.lastPathComponent.hasPrefix("infinistock-") && written.lastPathComponent.hasSuffix(".json"))
+        let reloaded = try BackupService.decode(try Data(contentsOf: written))
+        check("落盘文件可回读", reloaded.items.count == expectedItemCount, "\(reloaded.items.count)")
+        check("记录最近备份时间", BackupService.lastBackupAt != nil)
+
+        // 同日再备份一次不应重复由 auto 触发（此处目录书签未设，应安全返回 nil）
+        check("未配置目录时自动备份静默跳过", BackupService.autoBackupIfNeeded(from: source) == nil)
+        try? FileManager.default.removeItem(at: liveDir)
+
         print(failures == 0 ? "\nALL CHECKS PASSED" : "\n\(failures) CHECK(S) FAILED")
         exit(failures == 0 ? 0 : 1)
     }

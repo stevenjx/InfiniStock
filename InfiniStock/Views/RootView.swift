@@ -116,6 +116,7 @@ struct RootView: View {
             #if DEBUG
             DebugSeed.seedIfRequested(modelContext)
             #endif
+            BackupService.autoBackupIfNeeded(from: modelContext)
         }
     }
 

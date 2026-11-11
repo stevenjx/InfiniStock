@@ -14,6 +14,8 @@ swiftc -disable-sandbox -parse-as-library -O \
 	InfiniStock/Store/*.swift \
 	InfiniStock/Receipt/*.swift \
 	InfiniStock/Search/SpotlightIndexer.swift \
+	InfiniStock/Backup/BackupSnapshot.swift \
+	InfiniStock/Backup/BackupService.swift \
 	Verification/main.swift
 
 "$OUT/verify"
