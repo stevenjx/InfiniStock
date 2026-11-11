@@ -88,4 +88,19 @@ final class Item {
             .filter { !$0.isEmpty }
             .joined(separator: " / ")
     }
+
+    /// 库龄：入库日到售出日（未售则到今天）的自然日差
+    var ageInDays: Int {
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: inboundAt)
+        let end = calendar.startOfDay(for: soldAt ?? .now)
+        return max(0, calendar.dateComponents([.day], from: start, to: end).day ?? 0)
+    }
+
+    /// 超过该天数仍未售出即视为呆滞
+    static let overdueDays = 60
+
+    var isOverdue: Bool {
+        status == .inStock && ageInDays >= Self.overdueDays
+    }
 }

@@ -56,7 +56,7 @@ struct ItemDetailView: View {
             }
         }
         .sheet(isPresented: $showingSale) {
-            SaleSheet(item: item)
+            SaleSheet(items: [item])
         }
     }
 
