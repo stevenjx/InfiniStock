@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  当前配置：不含 iCloud / CloudKit 能力。
+
+	  原因：免费 Apple ID（Personal Team）不支持 iCloud 能力，带上下面这段会导致
+	  签名直接失败（"Personal development teams do not support the iCloud capability"）。
+	  移除后 App 仍可在本机运行，AppStore.make() 会自动回退到本地库。
+
+	  拿到付费 Apple Developer Program 会员资格后，把下面这段取消注释即可启用 CloudKit 同步：
+	<key>com.apple.developer.icloud-container-identifiers</key>
+	<array>
+		<string>iCloud.com.infinistock.app</string>
+	</array>
+	<key>com.apple.developer.icloud-services</key>
+	<array>
+		<string>CloudKit</string>
+	</array>
+	<key>com.apple.developer.ubiquity-kvstore-identifier</key>
+	<string>$(TeamIdentifierPrefix)$(CFBundleIdentifier)</string>
+	-->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+</dict>
+</plist>
