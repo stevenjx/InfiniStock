@@ -12,6 +12,7 @@ swiftc -disable-sandbox -parse-as-library -O \
 	-o "$OUT/verify" \
 	InfiniStock/Model/*.swift \
 	InfiniStock/Store/*.swift \
+	InfiniStock/Receipt/*.swift \
 	Verification/main.swift
 
 "$OUT/verify"

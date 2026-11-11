@@ -1,4 +1,5 @@
 import Foundation
+import PDFKit
 import SwiftData
 
 /// 业务层自检。不依赖界面，直接对 Model + Store 跑断言。
@@ -110,6 +111,62 @@ struct Verify {
             check("非法进价被拦截", false)
         } catch {
             check("非法进价被拦截", true)
+        }
+
+
+        // MARK: 金额大写
+
+        check("8999 大写", ChineseAmount.uppercase(8999) == "捌仟玖佰玖拾玖元整", ChineseAmount.uppercase(8999))
+        check("10001 大写补零", ChineseAmount.uppercase(10001) == "壹万零壹元整", ChineseAmount.uppercase(10001))
+        check("100.5 大写", ChineseAmount.uppercase(100.5) == "壹佰元伍角", ChineseAmount.uppercase(100.5))
+        check("0.05 大写", ChineseAmount.uppercase(0.05) == "伍分", ChineseAmount.uppercase(0.05))
+        check("1234567.89 大写",
+              ChineseAmount.uppercase(1234567.89) == "壹佰贰拾叁万肆仟伍佰陆拾柒元捌角玖分",
+              ChineseAmount.uppercase(1234567.89))
+
+        // MARK: 凭证 PDF
+
+        let document = ReceiptDocument(order: order)
+        check("凭证不含进价与毛利", document.lines.allSatisfy { $0.price > 0 })
+
+        guard let pdf = ReceiptPDFRenderer.render(document) else {
+            check("PDF 生成", false, "render 返回 nil")
+            print("\n\(failures) CHECK(S) FAILED")
+            exit(1)
+        }
+        check("PDF 有内容", pdf.count > 2_000, "\(pdf.count) bytes")
+        check("PDF 文件头正确", String(data: pdf.prefix(5), encoding: .ascii) == "%PDF-")
+
+        guard let parsed = PDFDocument(data: pdf), let page = parsed.page(at: 0) else {
+            check("PDF 可被解析", false)
+            print("\n\(failures) CHECK(S) FAILED")
+            exit(1)
+        }
+        check("PDF 单页", parsed.pageCount == 1, "\(parsed.pageCount)")
+        check("页面为 A4 宽度", abs(page.bounds(for: .mediaBox).width - 595.28) < 1, "\(page.bounds(for: .mediaBox))")
+
+        let content = page.string ?? ""
+        check("PDF 含标题", content.contains("销售凭证"))
+        check("PDF 含序列号", content.contains("C02ABC123"), content.prefix(80).description)
+        check("PDF 含客户", content.contains("张三"))
+        check("PDF 含合计金额", content.contains("8,999"))
+        check("PDF 含大写金额", content.contains("捌仟玖佰玖拾玖元整"))
+        check("PDF 不含成本字样", !content.contains("进价") && !content.contains("毛利"))
+
+        // MARK: 照片压缩
+
+        let bigImage = NSImage(size: NSSize(width: 3000, height: 2000))
+        bigImage.lockFocus()
+        NSColor.systemBlue.setFill()
+        NSRect(x: 0, y: 0, width: 3000, height: 2000).fill()
+        bigImage.unlockFocus()
+        if let tiff = bigImage.tiffRepresentation,
+           let jpeg = ImageScaler.downscaledJPEG(tiff),
+           let scaled = NSImage(data: jpeg) {
+            check("照片长边压到 1600", scaled.size.width == 1600, "\(scaled.size.width)")
+            check("照片体积可控", jpeg.count < 1_200_000, "\(jpeg.count) bytes")
+        } else {
+            check("照片压缩", false)
         }
 
         print(failures == 0 ? "\nALL CHECKS PASSED" : "\n\(failures) CHECK(S) FAILED")

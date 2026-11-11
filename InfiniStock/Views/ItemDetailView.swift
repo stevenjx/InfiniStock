@@ -4,6 +4,7 @@ import SwiftData
 struct ItemDetailView: View {
     let item: Item
     @State private var showingSale = false
+    @State private var showingReceipt = false
 
     var body: some View {
         Form {
@@ -16,6 +17,10 @@ struct ItemDetailView: View {
                 LabeledContent("颜色", value: dash(item.color))
                 LabeledContent("成色", value: item.condition.rawValue)
                 LabeledContent("入库时间", value: item.inboundAt.formatted(date: .numeric, time: .shortened))
+            }
+
+            Section("实物照片") {
+                PhotoField(item: item)
             }
 
             Section("成本") {
@@ -54,9 +59,19 @@ struct ItemDetailView: View {
                     Button("出库销售") { showingSale = true }
                 }
             }
+            if item.order != nil {
+                ToolbarItem(placement: .primaryAction) {
+                    Button("销售凭证") { showingReceipt = true }
+                }
+            }
         }
         .sheet(isPresented: $showingSale) {
             SaleSheet(items: [item])
+        }
+        .sheet(isPresented: $showingReceipt) {
+            if let order = item.order {
+                ReceiptSheet(order: order)
+            }
         }
     }
 
