@@ -8,6 +8,7 @@ import SwiftData
 struct Verify {
     @MainActor
     static func main() throws {
+        setvbuf(stdout, nil, _IONBF, 0)   // 崩溃时也要能看到已跑过的断言
         var failures = 0
         func check(_ name: String, _ condition: Bool, _ detail: String = "") {
             if condition {
@@ -628,6 +629,110 @@ struct Verify {
         check("恢复后新单不重号",
               nextOrder.number.hasSuffix("-0004"),
               nextOrder.number)
+
+
+        // MARK: P3 CSV 导入
+
+        let csvSchema = Schema([Item.self, Order.self, Batch.self])
+        let csvConfig = ModelConfiguration(schema: csvSchema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let csvContainer = try ModelContainer(for: csvSchema, configurations: [csvConfig])
+        let csvContext = csvContainer.mainContext
+
+        // 解析器本身：引号、逗号、转义、CRLF、BOM
+        let tricky = "\u{FEFF}序列号,型号,颜色\r\nA1,\"iPhone 17, Pro\",\"深空\"\"黑\"\r\nA2,iPhone 16,银色\r\n"
+        let trickyRows = CSVImporter.parseRows(tricky)
+        check("CSV 去 BOM", trickyRows.first?.first == "序列号", "\(String(describing: trickyRows.first?.first))")
+        check("CSV 字段内逗号", trickyRows[1][1] == "iPhone 17, Pro", trickyRows[1][1])
+        check("CSV 双引号转义", trickyRows[1][2] == "深空\"黑", trickyRows[1][2])
+        check("CSV 行数正确", trickyRows.count == 3, "\(trickyRows.count)")
+
+        // 100 行含 3 行错误
+        var lines: [String] = ["序列号,型号,存储,成色,进价,币种,汇率,运费,标价"]
+        var errorLines: [Int] = []
+        for index in 1...100 {
+            let line = index + 1
+            if index == 7 {
+                lines.append(",iPhone 17,256GB,95新,1000,CNY,1,0,6999")        // 序列号为空
+                errorLines.append(line)
+            } else if index == 23 {
+                lines.append("IMP023,iPhone 17,256GB,95新,abc,CNY,1,0,6999")   // 进价非法
+                errorLines.append(line)
+            } else if index == 88 {
+                lines.append("IMP001,iPhone 17,256GB,95新,1000,CNY,1,0,6999")  // 与第 2 行重复
+                errorLines.append(line)
+            } else {
+                lines.append(String(format: "IMP%03d,iPhone 17,256GB,95新,1000,CNY,1.5,20,6999", index))
+            }
+        }
+        let importCSVText = lines.joined(separator: "\n")
+        let csvPreview = CSVImporter.preview(csv: Data(importCSVText.utf8), in: csvContext)
+
+        check("预检认出 97 台可用", csvPreview.rows.count == 97, "\(csvPreview.rows.count)")
+        check("预检报出 3 行错误", csvPreview.issues.count == 3, "\(csvPreview.issues.count)")
+        check("错误行号准确",
+              csvPreview.issues.map { $0.line }.sorted() == errorLines,
+              "\(csvPreview.issues.map { $0.line }.sorted())")
+        check("预检不写库",
+              try csvContext.fetchCount(FetchDescriptor<Item>()) == 0,
+              "\(try csvContext.fetchCount(FetchDescriptor<Item>()))")
+
+        // 落库
+        let importedCount = try CSVImporter.commit(csvPreview, batch: nil, in: csvContext)
+        check("实际导入 97 台", importedCount == 97, "\(importedCount)")
+        check("库中确实 97 台",
+              try csvContext.fetchCount(FetchDescriptor<Item>()) == 97,
+              "\(try csvContext.fetchCount(FetchDescriptor<Item>()))")
+
+        let importedItem = try csvContext.fetch(
+            FetchDescriptor<Item>(predicate: #Predicate { $0.serialNumber == "IMP002" })
+        ).first
+        check("落地成本 = 1000×1.5+20", importedItem?.landedCostCNY == 1520,
+              "\(String(describing: importedItem?.landedCostCNY))")
+        check("标价导入正确", importedItem?.listPriceCNY == 6999)
+        check("成色导入正确", importedItem?.condition == .p95)
+        check("状态默认为在库", importedItem?.status == .inStock)
+        check("错误行未入库",
+              try csvContext.fetch(
+                FetchDescriptor<Item>(predicate: #Predicate { $0.serialNumber == "IMP023" })
+              ).isEmpty)
+
+        // 同一份文件再导一次：全部变成「库中已存在」，不会重复
+        let secondPreview = CSVImporter.preview(csv: Data(importCSVText.utf8), in: csvContext)
+        check("重复导入全部被拦下", secondPreview.rows.isEmpty, "\(secondPreview.rows.count)")
+        check("重复导入报 100 行冲突", secondPreview.issues.count == 100, "\(secondPreview.issues.count)")
+
+        // 缺必需列
+        let badHeader = "型号,存储\niPhone 17,256GB\n"
+        let badPreview = CSVImporter.preview(csv: Data(badHeader.utf8), in: csvContext)
+        check("缺列直接拒绝", badPreview.rows.isEmpty && badPreview.issues.count == 1)
+
+        // 成色与币种非法
+        let wrongValues = "序列号,型号,进价,成色,币种\nX1,iPhone 17,1000,九五新,CNY\nX2,iPhone 17,1000,95新,RMB\n"
+        let wrongPreview = CSVImporter.preview(csv: Data(wrongValues.utf8), in: csvContext)
+        check("非法成色被拦", wrongPreview.issues.contains { $0.field == "成色" })
+        check("非法币种被拦", wrongPreview.issues.contains { $0.field == "币种" })
+        check("合法行仍可通过", wrongPreview.rows.count == 0)
+
+        // 错误清单可导出
+        let issueCSV = String(decoding: CSVImporter.issuesCSV(csvPreview.issues), as: UTF8.self)
+        check("错误清单带表头", issueCSV.contains("行号,字段,原因"))
+        check("错误清单含错误行号", issueCSV.contains("24"))
+
+        // 带批次导入会重算分摊
+        let importBatch = Batch()
+        importBatch.name = "导入批"
+        importBatch.currency = .cny
+        importBatch.exchangeRate = 1
+        importBatch.totalShippingCNY = 100
+        importBatch.allocation = .byCount
+        csvContext.insert(importBatch)
+
+        let batchCSV = "序列号,型号,进价,汇率\nBATCH1,iPhone 17,1000,1\nBATCH2,iPhone 17,1000,1\n"
+        let batchPreview = CSVImporter.preview(csv: Data(batchCSV.utf8), in: csvContext)
+        _ = try CSVImporter.commit(batchPreview, batch: importBatch, in: csvContext)
+        check("导入进批次后运费分摊",
+              importBatch.itemList.reduce(Decimal(0)) { $0 + $1.shippingCNY } == 100,
+              "\(importBatch.itemList.reduce(Decimal(0)) { $0 + $1.shippingCNY })")
 
         print(failures == 0 ? "\nALL CHECKS PASSED" : "\n\(failures) CHECK(S) FAILED")
         exit(failures == 0 ? 0 : 1)

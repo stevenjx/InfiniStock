@@ -93,6 +93,7 @@ struct RootView: View {
 
             ToolbarItem(placement: .primaryAction) {
                 Menu {
+                    Button("批量导入 CSV…") { appState.showingImport = true }
                     Button("统计") { openWindow(id: "dashboard") }
                     Divider()
                     Button(showingInspector ? "隐藏检查器" : "显示检查器") {
@@ -105,6 +106,9 @@ struct RootView: View {
         }
         .sheet(isPresented: $appState.showingIntake) {
             IntakeSheet()
+        }
+        .sheet(isPresented: $appState.showingImport) {
+            ImportSheet()
         }
         .sheet(isPresented: $appState.showingSettings) {
             NavigationStack { SettingsView() }

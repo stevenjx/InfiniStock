@@ -35,6 +35,11 @@ struct InfiniStockApp: App {
                 }
                 .keyboardShortcut("f", modifiers: .command)
 
+                Button("批量导入 CSV…") {
+                    appState.showingImport = true
+                }
+                .keyboardShortcut("i", modifiers: [.command, .shift])
+
                 Button("统计") {
                     appState.showingDashboard = true
                 }
