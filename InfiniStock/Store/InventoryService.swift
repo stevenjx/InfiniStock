@@ -60,7 +60,7 @@ enum InventoryService {
     }
 
     @discardableResult
-    static func intake(_ draft: IntakeDraft, in context: ModelContext) throws -> Item {
+    static func intake(_ draft: IntakeDraft, batch: Batch? = nil, in context: ModelContext) throws -> Item {
         let serial = normalize(draft.serialNumber)
         guard !serial.isEmpty else { throw InventoryError.emptySerial }
         guard !normalize(draft.modelName).isEmpty else { throw InventoryError.emptyModel }
@@ -86,6 +86,12 @@ enum InventoryService {
             listPriceCNY: listPrice
         )
         context.insert(item)
+
+        if let batch {
+            item.batch = batch
+            CostAllocation.reallocate(batch)
+        }
+
         try context.save()
         return item
     }

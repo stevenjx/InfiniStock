@@ -28,6 +28,9 @@ struct ItemDetailView: View {
                 LabeledContent("汇率", value: Money.text(item.exchangeRate))
                 LabeledContent("运费", value: item.shippingCNY.cny)
                 LabeledContent("落地成本", value: item.landedCostCNY.cny)
+                if let batch = item.batch {
+                    LabeledContent("批次", value: batch.name)
+                }
             }
 
             Section("价格") {

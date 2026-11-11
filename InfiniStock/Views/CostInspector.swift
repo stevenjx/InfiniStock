@@ -34,6 +34,15 @@ struct CostInspector: View {
             LabeledContent("毛利率", value: marginText(item.listPriceCNY - item.landedCostCNY, base: item.listPriceCNY))
         }
 
+        if let batch = item.batch {
+            Section("批次") {
+                LabeledContent("批次", value: batch.name)
+                LabeledContent("锁定汇率", value: Money.text(batch.exchangeRate))
+                LabeledContent("批次总运费", value: batch.totalShippingCNY.cny)
+                LabeledContent("已分摊运费", value: item.shippingCNY.cny)
+            }
+        }
+
         Section("持有") {
             LabeledContent("库龄", value: "\(item.ageInDays) 天")
             if item.isOverdue {

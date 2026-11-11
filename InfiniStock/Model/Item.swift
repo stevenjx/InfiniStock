@@ -33,6 +33,7 @@ final class Item {
     var soldAt: Date?
 
     var order: Order?
+    var batch: Batch?
 
     init(
         serialNumber: String,

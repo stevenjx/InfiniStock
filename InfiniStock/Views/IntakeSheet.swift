@@ -5,7 +5,11 @@ struct IntakeSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
 
+    @Query private var batches: [Batch]
+
     @State private var draft = IntakeDraft()
+    @State private var selectedBatch: Batch?
+    @State private var showingBatchSheet = false
     @State private var errorMessage: String?
     @State private var savedMessage: String?
 
@@ -25,6 +29,16 @@ struct IntakeSheet: View {
                             Text(condition.rawValue).tag(condition)
                         }
                     }
+                }
+
+                Section("批次") {
+                    Picker("归属批次", selection: $selectedBatch) {
+                        Text("不归属批次").tag(Batch?.none)
+                        ForEach(batches) { batch in
+                            Text(batch.name).tag(Optional(batch))
+                        }
+                    }
+                    Button("新建批次…") { showingBatchSheet = true }
                 }
 
                 Section("成本") {
@@ -66,6 +80,9 @@ struct IntakeSheet: View {
                     Button("保存") { save() }
                 }
             }
+            .sheet(isPresented: $showingBatchSheet) {
+                BatchSheet()
+            }
             .alert("入库失败", isPresented: Binding(
                 get: { errorMessage != nil },
                 set: { if !$0 { errorMessage = nil } }
@@ -88,7 +105,7 @@ struct IntakeSheet: View {
 
     private func save() {
         do {
-            let item = try InventoryService.intake(draft, in: context)
+            let item = try InventoryService.intake(draft, batch: selectedBatch, in: context)
             let savedSerial = item.serialNumber
             draft = IntakeDraft()
             savedMessage = "已入库 \(savedSerial)"

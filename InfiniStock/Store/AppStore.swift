@@ -14,7 +14,7 @@ enum AppStore {
     /// 之所以用编译开关而非运行时探测：没有 iCloud 能力时 ModelContainer 仍可能
     /// 初始化成功（尤其在模拟器/无签名环境），会导致界面谎报"正在同步"。
     static func make() -> AppStoreBundle {
-        let schema = Schema([Item.self, Order.self])
+        let schema = Schema([Item.self, Order.self, Batch.self])
 
         #if CLOUD_SYNC
         let cloudConfiguration = ModelConfiguration(schema: schema, cloudKitDatabase: .automatic)

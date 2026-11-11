@@ -18,7 +18,7 @@ struct Verify {
             }
         }
 
-        let schema = Schema([Item.self, Order.self])
+        let schema = Schema([Item.self, Order.self, Batch.self])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: schema, configurations: [config])
         let context = container.mainContext
@@ -99,6 +99,65 @@ struct Verify {
         item.soldAt = calendar.date(byAdding: .day, value: -10, to: .now)!
         check("已售库龄 = 卖出日 - 入库日 = 30", item.ageInDays == 30, "\(item.ageInDays)")
         check("已售不计入呆滞", !item.isOverdue)
+
+
+        // MARK: 批次分摊
+
+        let countBatch = Batch()
+        countBatch.name = "按台均摊"
+        countBatch.currency = .usd
+        countBatch.exchangeRate = 7.1
+        countBatch.totalShippingCNY = 100
+        countBatch.allocation = .byCount
+        context.insert(countBatch)
+
+        var countDrafts: [IntakeDraft] = []
+        for index in 1...3 {
+            var d = IntakeDraft()
+            d.serialNumber = "CNT00\(index)"
+            d.modelName = "iPhone 17"
+            d.costAmount = "100"
+            d.exchangeRate = "7.1"
+            countDrafts.append(d)
+            _ = try InventoryService.intake(d, batch: countBatch, in: context)
+        }
+
+        let countShares = countBatch.itemList.map(\.shippingCNY).sorted()
+        check("按台均摊 3 台", countShares.count == 3, "\(countShares)")
+        check("按台均摊合计精确 = 100",
+              countBatch.itemList.reduce(Decimal(0)) { $0 + $1.shippingCNY } == 100,
+              "\(countBatch.itemList.reduce(Decimal(0)) { $0 + $1.shippingCNY })")
+        check("尾差落在最后一台", countShares.last == Decimal(string: "33.34"), "\(String(describing: countShares.last))")
+        check("汇率锁定到每台",
+              countBatch.itemList.allSatisfy { $0.exchangeRate == 7.1 })
+
+        let valueBatch = Batch()
+        valueBatch.name = "按货值分摊"
+        valueBatch.currency = .cny
+        valueBatch.exchangeRate = 1
+        valueBatch.totalShippingCNY = 120
+        valueBatch.allocation = .byValue
+        context.insert(valueBatch)
+
+        for (index, cost) in [100, 200, 300].enumerated() {
+            var d = IntakeDraft()
+            d.serialNumber = "VAL00\(index)"
+            d.modelName = "iPhone 16"
+            d.costAmount = "\(cost)"
+            d.exchangeRate = "1"
+            _ = try InventoryService.intake(d, batch: valueBatch, in: context)
+        }
+
+        let valueShares = valueBatch.itemList.sorted { $0.serialNumber < $1.serialNumber }.map(\.shippingCNY)
+        check("按货值分摊 100/200/300 → 20/40/60",
+              valueShares == [20, 40, 60],
+              "\(valueShares)")
+        check("按货值分摊合计精确 = 120",
+              valueBatch.itemList.reduce(Decimal(0)) { $0 + $1.shippingCNY } == 120)
+
+        let baseSum = valueBatch.itemList.reduce(Decimal(0)) { $0 + $1.costAmount * $1.exchangeRate }
+        let landedSum = valueBatch.itemList.reduce(Decimal(0)) { $0 + $1.landedCostCNY }
+        check("落地成本合计 = 货值 + 运费", landedSum == baseSum + 120, "\(landedSum) vs \(baseSum + 120)")
 
         // MARK: 非法输入
 
