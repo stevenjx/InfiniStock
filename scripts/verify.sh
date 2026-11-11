@@ -13,6 +13,7 @@ swiftc -disable-sandbox -parse-as-library -O \
 	InfiniStock/Model/*.swift \
 	InfiniStock/Store/*.swift \
 	InfiniStock/Receipt/*.swift \
+	InfiniStock/Search/SpotlightIndexer.swift \
 	Verification/main.swift
 
 "$OUT/verify"

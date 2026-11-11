@@ -3,8 +3,11 @@ import SwiftData
 
 struct ItemDetailView: View {
     let item: Item
+    @Environment(\.modelContext) private var modelContext
     @State private var showingSale = false
     @State private var showingReceipt = false
+    @State private var showingVoidConfirm = false
+    @State private var errorMessage: String?
 
     var body: some View {
         Form {
@@ -64,7 +67,13 @@ struct ItemDetailView: View {
             }
             if item.order != nil {
                 ToolbarItem(placement: .primaryAction) {
-                    Button("销售凭证") { showingReceipt = true }
+                    Menu {
+                        Button("销售凭证") { showingReceipt = true }
+                        Divider()
+                        Button("撤销单据", role: .destructive) { showingVoidConfirm = true }
+                    } label: {
+                        Label("单据", systemImage: "doc.text")
+                    }
                 }
             }
         }
@@ -75,6 +84,36 @@ struct ItemDetailView: View {
             if let order = item.order {
                 ReceiptSheet(order: order)
             }
+        }
+        .confirmationDialog("撤销这张单据？", isPresented: $showingVoidConfirm, titleVisibility: .visible) {
+            Button("撤销并退回库存", role: .destructive) {
+                Task { await performVoid() }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("机器会回到在库状态，凭证作废。该操作需要系统身份验证。")
+        }
+        .alert("撤销失败", isPresented: Binding(
+            get: { errorMessage != nil },
+            set: { if !$0 { errorMessage = nil } }
+        )) {
+            Button("好", role: .cancel) { errorMessage = nil }
+        } message: {
+            Text(errorMessage ?? "")
+        }
+    }
+
+    private func performVoid() async {
+        guard let order = item.order else { return }
+        let passed = await BiometricGate.authenticate(reason: "撤销销售单 \(order.number)")
+        guard passed else {
+            errorMessage = "身份验证未通过，撤销已取消"
+            return
+        }
+        do {
+            try OrderService.void(order, in: modelContext)
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 

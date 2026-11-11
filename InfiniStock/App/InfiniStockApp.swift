@@ -9,7 +9,7 @@ struct InfiniStockApp: App {
     @State private var appState = AppState()
 
     init() {
-        let store = AppStore.make()
+        let store = AppStore.shared
         container = store.container
         cloudSyncEnabled = store.cloudSyncEnabled
     }

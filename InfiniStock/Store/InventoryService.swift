@@ -93,6 +93,7 @@ enum InventoryService {
         }
 
         try context.save()
+        SpotlightIndexer.index(item)
         return item
     }
 
@@ -133,6 +134,7 @@ enum InventoryService {
         order.profitCNY = profit.rounded(2)
 
         try context.save()
+        items.forEach(SpotlightIndexer.index)
         return order
     }
 

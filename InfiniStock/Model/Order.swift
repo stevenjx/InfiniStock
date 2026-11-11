@@ -10,6 +10,8 @@ final class Order {
     var totalCNY: Decimal = 0
     var profitCNY: Decimal = 0
     var createdAt: Date = Date()
+    /// 作废时间；作废单保留以备审计，不会进入统计
+    var voidedAt: Date?
     /// 出单设备标识，后续做离线冲突仲裁时按 (createdAt, originDeviceID) 定序
     var originDeviceID: String = ""
 

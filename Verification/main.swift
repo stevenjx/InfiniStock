@@ -276,6 +276,46 @@ struct Verify {
             check("照片压缩", false)
         }
 
+
+        // MARK: 撤销单据与序列号查询
+
+        var voidDraft = IntakeDraft()
+        voidDraft.serialNumber = "VOID001"
+        voidDraft.modelName = "iPhone 18"
+        voidDraft.costAmount = "5000"
+        voidDraft.currency = .cny
+        voidDraft.exchangeRate = "1"
+        voidDraft.listPriceCNY = "6999"
+        let voidItem = try InventoryService.intake(voidDraft, in: context)
+        let voidOrder = try InventoryService.sell(
+            items: [voidItem], unitPrice: 6999,
+            customerName: "李四", customerContact: "", in: context
+        )
+
+        check("撤销前为已售", voidItem.status == .sold)
+        try OrderService.void(voidOrder, in: context)
+        check("撤销后回到在库", voidItem.status == .inStock)
+        check("撤销后清空成交价", voidItem.soldPriceCNY == 0)
+        check("撤销后清空售出时间", voidItem.soldAt == nil)
+        check("撤销后解除单据关联", voidItem.order == nil)
+        check("单据标记作废但保留", voidOrder.voidedAt != nil && voidOrder.totalCNY == 6999)
+
+        do {
+            try OrderService.void(voidOrder, in: context)
+            check("重复撤销被拦截", false, "未抛错")
+        } catch {
+            check("重复撤销被拦截", true)
+        }
+
+        check("撤销后库存台数恢复",
+              try context.fetch(FetchDescriptor<Item>()).filter { $0.status == .inStock }.contains { $0.serialNumber == "VOID001" })
+
+        check("按序列号查询忽略大小写与空格",
+              ItemLookup.find(serial: " void001 ", in: context)?.serialNumber == "VOID001")
+        check("查询不存在的序列号返回 nil",
+              ItemLookup.find(serial: "NOT-EXIST", in: context) == nil)
+        check("最近入库列表非空", !ItemLookup.recent(in: context).isEmpty)
+
         print(failures == 0 ? "\nALL CHECKS PASSED" : "\n\(failures) CHECK(S) FAILED")
         exit(failures == 0 ? 0 : 1)
     }
