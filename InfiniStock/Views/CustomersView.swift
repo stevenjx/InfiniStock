@@ -28,42 +28,42 @@ struct CustomersView: View {
                         monospacedSubtitle: false
                     )
                 }
-                .width(min: 150, ideal: 180)
+                .width(min: 128, ideal: 156)
 
                 TableColumn("单据") { customer in
                     Text("\(customer.orderCount) 张")
                         .font(Token.Typography.money)
                         .foregroundStyle(Token.Ink.secondary)
                 }
-                .width(min: 62, ideal: 70)
+                .width(min: 50, ideal: 56)
 
                 TableColumn("台数") { customer in
                     Text("\(customer.machineCount)")
                         .font(Token.Typography.money)
                         .foregroundStyle(Token.Ink.primary)
                 }
-                .width(min: 44, ideal: 50)
+                .width(min: 36, ideal: 40)
 
                 TableColumn("累计消费") { customer in
                     Text(customer.revenue.cny)
                         .font(Token.Typography.money)
                         .foregroundStyle(Token.Ink.primary)
                 }
-                .width(min: 96, ideal: 110)
+                .width(min: 84, ideal: 94)
 
                 TableColumn("累计毛利") { customer in
                     Text(customer.profit.signedCNY)
                         .font(Token.Typography.money)
                         .foregroundStyle(customer.profit < 0 ? Token.Status.danger : Token.Status.ok)
                 }
-                .width(min: 90, ideal: 104)
+                .width(min: 78, ideal: 88)
 
                 TableColumn("最近购买") { customer in
                     Text(customer.lastPurchase.formatted(date: .numeric, time: .omitted))
                         .font(Token.Typography.caption)
                         .foregroundStyle(Token.Ink.secondary)
                 }
-                .width(min: 92, ideal: 104)
+                .width(min: 78, ideal: 88)
             }
             .tableStyle(.inset(alternatesRowBackgrounds: false))
             .searchable(text: $searchText, prompt: "姓名 / 电话")

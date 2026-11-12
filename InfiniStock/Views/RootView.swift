@@ -138,31 +138,11 @@ struct RootView: View {
     // MARK: - 侧栏
 
     private var sidebar: some View {
-        List(selection: $section) {
-            Section("库存") {
-                ForEach([ItemStatus.inStock, .sold, .locked], id: \.self) { status in
-                    Label(SidebarSection.stock(status).label, systemImage: SidebarSection.stock(status).icon)
-                        .tag(Optional(SidebarSection.stock(status)))
-                }
-                Label(SidebarSection.stock(nil).label, systemImage: SidebarSection.stock(nil).icon)
-                    .tag(Optional(SidebarSection.stock(nil)))
-            }
-            Section("交易") {
-                Label(SidebarSection.orders.label, systemImage: SidebarSection.orders.icon)
-                    .tag(Optional(SidebarSection.orders))
-            }
-            Section("进货") {
-                Label(SidebarSection.batches.label, systemImage: SidebarSection.batches.icon)
-                    .tag(Optional(SidebarSection.batches))
-            }
-            Section("客户") {
-                Label(SidebarSection.customers.label, systemImage: SidebarSection.customers.icon)
-                    .tag(Optional(SidebarSection.customers))
-            }
-        }
+        SidebarView(selection: Binding(
+            get: { activeSection },
+            set: { section = $0 }
+        ))
     }
-
-    // MARK: - 中列
 
     private func contentColumn(searchPresented: Binding<Bool>) -> some View {
         VStack(spacing: 0) {

@@ -20,7 +20,7 @@ struct InventoryTableView: View {
             TableColumn("型号", value: \.modelName) { item in
                 CellTitle(title: item.modelName, subtitle: item.serialNumber)
             }
-            .width(min: 150, ideal: 190)
+            .width(min: 138, ideal: 170)
 
             TableColumn("规格") { item in
                 Text(specText(item))
@@ -28,21 +28,30 @@ struct InventoryTableView: View {
                     .foregroundStyle(Token.Ink.secondary)
                     .lineLimit(1)
             }
-            .width(min: 62, ideal: 80)
+            .width(min: 56, ideal: 72)
 
             TableColumn("落地成本", value: \.landedCostCNY) { item in
                 Text(item.landedCostCNY.cny)
                     .font(Token.Typography.money)
                     .foregroundStyle(Token.Ink.primary)
             }
-            .width(min: 84, ideal: 94)
+            .width(min: 88, ideal: 100)
 
-            TableColumn("标价", value: \.listPriceCNY) { item in
-                Text(item.listPriceCNY.cny)
-                    .font(Token.Typography.money)
-                    .foregroundStyle(Token.Ink.secondary)
+            TableColumn("标价 / 毛利", value: \.listPriceCNY) { item in
+                let profit = item.listPriceCNY - item.landedCostCNY
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text(item.listPriceCNY.cny)
+                        .font(Token.Typography.money)
+                        .foregroundStyle(Token.Ink.primary)
+                    if item.listPriceCNY > 0 {
+                        Text(profit.signedCNY)
+                            .font(Token.Typography.caption)
+                            .foregroundStyle(profit < 0 ? Token.Status.danger : Token.Status.ok)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .trailing)
             }
-            .width(min: 78, ideal: 88)
+            .width(min: 88, ideal: 100)
 
             TableColumn("库龄") { item in
                 if item.isOverdue {
@@ -53,7 +62,7 @@ struct InventoryTableView: View {
                         .foregroundStyle(Token.Ink.secondary)
                 }
             }
-            .width(min: 54, ideal: 64)
+            .width(min: 50, ideal: 58)
 
             if statusFilter == nil {
                 TableColumn("状态", value: \.statusRaw) { item in
@@ -63,7 +72,7 @@ struct InventoryTableView: View {
                         style: item.status == .inStock ? .outline : .filled
                     )
                 }
-                .width(min: 58, ideal: 68)
+                .width(min: 54, ideal: 62)
             }
         } rows: {
             ForEach(rows) { item in

@@ -44,45 +44,32 @@ struct OrdersView: View {
                 TableColumn("单号") { order in
                     CellTitle(
                         title: order.number,
-                        subtitle: order.customerName.isEmpty ? "散客" : order.customerName
+                        subtitle: (order.customerName.isEmpty ? "散客" : order.customerName)
+                            + " · \(order.itemList.count) 台"
                     )
                 }
-                .width(min: 150, ideal: 180)
+                .width(min: 130, ideal: 160)
 
                 TableColumn("日期") { order in
                     Text(order.createdAt.formatted(date: .numeric, time: .shortened))
                         .font(Token.Typography.caption)
                         .foregroundStyle(Token.Ink.secondary)
                 }
-                .width(min: 118, ideal: 138)
-
-                TableColumn("台数") { order in
-                    Text("\(order.itemList.count)")
-                        .font(Token.Typography.money)
-                        .foregroundStyle(Token.Ink.primary)
-                }
-                .width(min: 44, ideal: 52)
+                .width(min: 84, ideal: 96)
 
                 TableColumn("应收") { order in
                     Text(order.totalCNY.cny)
                         .font(Token.Typography.money)
                         .foregroundStyle(Token.Ink.primary)
                 }
-                .width(min: 90, ideal: 104)
+                .width(min: 82, ideal: 92)
 
                 TableColumn("毛利") { order in
                     Text(order.profitCNY.signedCNY)
                         .font(Token.Typography.money)
                         .foregroundStyle(order.profitCNY < 0 ? Token.Status.danger : Token.Status.ok)
                 }
-                .width(min: 86, ideal: 98)
-
-                TableColumn("收款") { order in
-                    Text(order.paymentMethod.rawValue)
-                        .font(Token.Typography.caption)
-                        .foregroundStyle(Token.Ink.secondary)
-                }
-                .width(min: 50, ideal: 58)
+                .width(min: 76, ideal: 86)
 
                 TableColumn("状态") { order in
                     Badge(
@@ -91,7 +78,7 @@ struct OrdersView: View {
                         style: order.isVoided ? .filled : .outline
                     )
                 }
-                .width(min: 74, ideal: 84)
+                .width(min: 62, ideal: 70)
             }
             .tableStyle(.inset(alternatesRowBackgrounds: false))
             .searchable(text: $searchText, prompt: "单号 / 客户 / 序列号")

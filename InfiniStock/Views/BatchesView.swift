@@ -18,47 +18,36 @@ struct BatchesView: View {
                     subtitle: batch.supplier.isEmpty ? "无供应商" : batch.supplier
                 )
             }
-            .width(min: 160, ideal: 200)
+            .width(min: 130, ideal: 160)
 
             TableColumn("台数") { batch in
                 Text("\(batch.itemList.count)")
                     .font(Token.Typography.money)
                     .foregroundStyle(Token.Ink.primary)
             }
-            .width(min: 44, ideal: 52)
+            .width(min: 38, ideal: 44)
 
             TableColumn("锁定汇率") { batch in
                 Text(Money.text(batch.exchangeRate))
                     .font(Token.Typography.money)
                     .foregroundStyle(Token.Ink.secondary)
             }
-            .width(min: 76, ideal: 86)
+            .width(min: 66, ideal: 76)
 
             TableColumn("总运费") { batch in
                 Text(batch.totalShippingCNY.cny)
                     .font(Token.Typography.money)
                     .foregroundStyle(Token.Ink.secondary)
             }
-            .width(min: 84, ideal: 96)
+            .width(min: 74, ideal: 84)
 
             TableColumn("落地成本合计") { batch in
                 Text(batch.itemList.reduce(Decimal(0)) { $0 + $1.landedCostCNY }.cny)
                     .font(Token.Typography.money)
                     .foregroundStyle(Token.Ink.primary)
             }
-            .width(min: 104, ideal: 120)
+            .width(min: 92, ideal: 104)
 
-            TableColumn("分摊方式") { batch in
-                Badge(text: batch.allocation.rawValue, tone: .neutral, style: .filled)
-            }
-            .width(min: 96, ideal: 108)
-
-            TableColumn("创建") { batch in
-                Text(batch.createdAt.formatted(date: .numeric, time: .omitted))
-                    .font(Token.Typography.caption)
-                    .foregroundStyle(Token.Ink.tertiary)
-            }
-            .width(min: 84, ideal: 96)
         }
         .tableStyle(.inset(alternatesRowBackgrounds: false))
             .searchable(text: $searchText, prompt: "批次 / 供应商")
