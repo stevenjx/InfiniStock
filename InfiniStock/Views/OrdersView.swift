@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 
+/// 单据列表。行内用双行单元格展示单号与客户，状态走语义徽章。
 struct OrdersView: View {
     @Binding var selection: PersistentIdentifier?
 
@@ -36,91 +37,75 @@ struct OrdersView: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, Token.Space.m)
+            .padding(.vertical, Token.Space.s)
 
             Table(filtered, selection: $selection) {
                 TableColumn("单号") { order in
-                    Text(order.number)
-                        .monospaced()
-                        .foregroundStyle(order.isVoided ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
+                    CellTitle(
+                        title: order.number,
+                        subtitle: order.customerName.isEmpty ? "散客" : order.customerName
+                    )
                 }
-                .width(min: 120, ideal: 140)
+                .width(min: 150, ideal: 180)
 
                 TableColumn("日期") { order in
                     Text(order.createdAt.formatted(date: .numeric, time: .shortened))
-                        .font(.caption)
+                        .font(Token.Typography.caption)
+                        .foregroundStyle(Token.Ink.secondary)
                 }
-                .width(min: 110, ideal: 130)
-
-                TableColumn("客户") { order in
-                    Text(order.customerName.isEmpty ? "—" : order.customerName)
-                }
-                .width(min: 80, ideal: 110)
-
-                TableColumn("联系方式") { order in
-                    Text(order.customerContact.isEmpty ? "—" : order.customerContact)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .width(min: 100, ideal: 120)
+                .width(min: 118, ideal: 138)
 
                 TableColumn("台数") { order in
                     Text("\(order.itemList.count)")
-                        .monospacedDigit()
+                        .font(Token.Typography.money)
+                        .foregroundStyle(Token.Ink.primary)
                 }
-                .width(min: 44, ideal: 50)
+                .width(min: 44, ideal: 52)
 
                 TableColumn("应收") { order in
-                    Text(order.totalCNY.cny).monospacedDigit()
+                    Text(order.totalCNY.cny)
+                        .font(Token.Typography.money)
+                        .foregroundStyle(Token.Ink.primary)
                 }
-                .width(min: 90, ideal: 110)
+                .width(min: 90, ideal: 104)
 
                 TableColumn("毛利") { order in
-                    Text(order.profitCNY.cny)
-                        .monospacedDigit()
-                        .foregroundStyle(order.profitCNY < 0 ? Color.orange : Color.secondary)
+                    Text(order.profitCNY.signedCNY)
+                        .font(Token.Typography.money)
+                        .foregroundStyle(order.profitCNY < 0 ? Token.Status.danger : Token.Status.ok)
                 }
-                .width(min: 80, ideal: 100)
+                .width(min: 86, ideal: 98)
 
                 TableColumn("收款") { order in
                     Text(order.paymentMethod.rawValue)
-                        .font(.caption)
+                        .font(Token.Typography.caption)
+                        .foregroundStyle(Token.Ink.secondary)
                 }
-                .width(min: 52, ideal: 60)
+                .width(min: 50, ideal: 58)
 
                 TableColumn("状态") { order in
-                    Text(order.statusLabel)
-                        .font(.caption)
-                        .foregroundStyle(statusColor(order))
+                    Badge(
+                        text: order.statusLabel,
+                        tone: order.tone,
+                        style: order.isVoided ? .filled : .outline
+                    )
                 }
-                .width(min: 70, ideal: 80)
+                .width(min: 74, ideal: 84)
             }
             .searchable(text: $searchText, prompt: "单号 / 客户 / 序列号")
-            .contextMenu(forSelectionType: PersistentIdentifier.self) { selected in
-                if let order = selectedOrder(selected), !order.isVoided {
-                    Button("查看凭证…") { receiptOrder = order }
+            .overlay {
+                if filtered.isEmpty {
+                    EmptyState(
+                        title: searchText.isEmpty ? "还没有单据" : "没有匹配结果",
+                        message: searchText.isEmpty ? "出库销售后自动生成单据" : "换个单号或客户名试试",
+                        systemImage: "doc.text"
+                    )
+                    .allowsHitTesting(false)
                 }
             }
         }
         .navigationTitle("单据")
-        .sheet(item: $receiptOrder) { order in
-            ReceiptSheet(order: order)
-        }
-    }
-
-    @State private var receiptOrder: Order?
-
-    private func selectedOrder(_ ids: Set<PersistentIdentifier>) -> Order? {
-        guard let id = ids.first else { return nil }
-        return orders.first { $0.id == id }
-    }
-
-    private func statusColor(_ order: Order) -> Color {
-        if order.isFullyReturned { return .red }
-        if order.isVoided { return .secondary }
-        if order.hasReturns { return .orange }
-        return .primary
     }
 
     private var filtered: [Order] {

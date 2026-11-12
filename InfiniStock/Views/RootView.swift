@@ -1,33 +1,46 @@
 import SwiftUI
 import SwiftData
 
-enum InventoryFilter: Hashable, CaseIterable {
-    case inStock
-    case sold
-    case all
-
-    var status: ItemStatus? {
-        switch self {
-        case .inStock: .inStock
-        case .sold: .sold
-        case .all: nil
-        }
-    }
+/// 侧栏分区。库存再按状态细分，其余是独立列表。
+enum SidebarSection: Hashable {
+    case stock(ItemStatus?)
+    case orders
+    case batches
+    case customers
 
     var label: String {
         switch self {
-        case .inStock: "在库"
-        case .sold: "已售"
-        case .all: "全部"
+        case .stock(let status):
+            switch status {
+            case .inStock: "在库"
+            case .sold: "已售"
+            case .locked: "锁定"
+            case nil: "全部"
+            }
+        case .orders: "单据"
+        case .batches: "批次"
+        case .customers: "客户"
         }
     }
 
     var icon: String {
         switch self {
-        case .inStock: "shippingbox"
-        case .sold: "checkmark.seal"
-        case .all: "square.grid.2x2"
+        case .stock(let status):
+            switch status {
+            case .inStock: "shippingbox"
+            case .sold: "checkmark.seal"
+            case .locked: "lock"
+            case nil: "square.grid.2x2"
+            }
+        case .orders: "doc.text"
+        case .batches: "shippingbox.and.arrow.backward"
+        case .customers: "person.2"
         }
+    }
+
+    var isStock: Bool {
+        if case .stock = self { return true }
+        return false
     }
 }
 
@@ -38,115 +51,57 @@ struct RootView: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(\.modelContext) private var modelContext
 
-    @State private var filter: InventoryFilter? = .inStock
-    @State private var selection: Set<PersistentIdentifier> = []
+    @State private var section: SidebarSection? = .stock(.inStock)
+    @State private var itemSelection: Set<PersistentIdentifier> = []
+    @State private var orderSelection: PersistentIdentifier?
+    @State private var batchSelection: PersistentIdentifier?
+    @State private var customerSelection: String?
+
     @State private var showingSale = false
     @State private var showingInspector = false
-    @State private var selectedOrderID: PersistentIdentifier?
     @State private var pendingDelete: [Item] = []
     @State private var deleteError: String?
 
     @Query private var allItems: [Item]
     @Query private var allOrders: [Order]
+    @Query private var allBatches: [Batch]
 
     var body: some View {
         @Bindable var appState = appState
 
         NavigationSplitView {
-            List(selection: $filter) {
-                Section("库存") {
-                    ForEach(InventoryFilter.allCases, id: \.self) { item in
-                        Label(item.label, systemImage: item.icon)
-                            .tag(Optional(item))
-                    }
-                }
-                Section("交易") {
-                    Label("单据", systemImage: "doc.text")
-                        .tag(Optional<InventoryFilter>(nil))
-                }
-            }
-            .navigationSplitViewColumnWidth(min: 150, ideal: 170, max: 220)
+            sidebar
+                .navigationSplitViewColumnWidth(min: 158, ideal: 176, max: 220)
         } content: {
-            if showingOrders {
-                OrdersView(selection: $selectedOrderID)
-                    .navigationSplitViewColumnWidth(min: 520, ideal: 760)
-            } else {
-                InventoryTableView(
-                    statusFilter: activeFilter.status,
-                    selection: $selection,
-                    searchPresented: $appState.showingSearch,
-                    onDeleteRequest: { items in pendingDelete = items }
-                )
-                .navigationSplitViewColumnWidth(min: 460, ideal: 700)
-                .navigationTitle(activeFilter.label)
-            }
+            contentColumn(searchPresented: $appState.showingSearch)
+                .navigationSplitViewColumnWidth(min: 480, ideal: 720)
+                .navigationTitle(activeSection.label)
         } detail: {
             detailPane
                 .inspector(isPresented: $showingInspector) {
                     CostInspector(items: selectedItems)
-                        .inspectorColumnWidth(min: 220, ideal: 260, max: 340)
+                        .inspectorColumnWidth(min: 230, ideal: 270, max: 340)
                 }
         }
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    appState.showingIntake = true
-                } label: {
-                    Label("入库", systemImage: "plus")
-                }
-                .disabled(showingOrders)
-                .help("入库（⌘N）")
-            }
-
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    showingSale = true
-                } label: {
-                    Label("出库销售", systemImage: "arrow.up.forward.square")
-                }
-                .disabled(!canSell || showingOrders)
-                .help("出库销售")
-            }
-
-            ToolbarItem(placement: .primaryAction) {
-                Menu {
-                    Button("批量导入 CSV…") { appState.showingImport = true }
-                    Button("统计") { openWindow(id: "dashboard") }
-                    Divider()
-                    Button(showingInspector ? "隐藏检查器" : "显示检查器") {
-                        showingInspector.toggle()
-                    }
-                } label: {
-                    Label("更多", systemImage: "ellipsis.circle")
-                }
-            }
-        }
-        .sheet(isPresented: $appState.showingIntake) {
-            IntakeSheet()
-        }
-        .sheet(isPresented: $appState.showingImport) {
-            ImportSheet()
-        }
+        .toolbar { toolbarContent }
+        .sheet(isPresented: $appState.showingIntake) { IntakeSheet() }
+        .sheet(isPresented: $appState.showingImport) { ImportSheet() }
         .sheet(isPresented: $appState.showingSettings) {
             NavigationStack { SettingsView() }
                 .frame(minWidth: 520, minHeight: 520)
         }
+        .sheet(isPresented: $showingSale) { SaleSheet(items: selectedItems) }
         .onChange(of: appState.showingDashboard) { _, showing in
             if showing {
                 openWindow(id: "dashboard")
                 appState.showingDashboard = false
             }
         }
-        .sheet(isPresented: $showingSale) {
-            SaleSheet(items: selectedItems)
-        }
         .onChange(of: showingSale) { _, isPresented in
-            if !isPresented { selection.removeAll() }
+            if !isPresented { itemSelection.removeAll() }
         }
         .confirmationDialog(
-            pendingDelete.count == 1
-                ? "删除 1 台机器？"
-                : "删除 \(pendingDelete.count) 台机器？",
+            pendingDelete.count == 1 ? "删除 1 台机器？" : "删除 \(pendingDelete.count) 台机器？",
             isPresented: Binding(
                 get: { !pendingDelete.isEmpty },
                 set: { if !$0 { pendingDelete = [] } }
@@ -176,17 +131,162 @@ struct RootView: View {
         }
     }
 
-    private var activeFilter: InventoryFilter {
-        filter ?? .inStock
+    // MARK: - 侧栏
+
+    private var sidebar: some View {
+        List(selection: $section) {
+            Section("库存") {
+                ForEach([ItemStatus.inStock, .sold, .locked], id: \.self) { status in
+                    Label(SidebarSection.stock(status).label, systemImage: SidebarSection.stock(status).icon)
+                        .tag(Optional(SidebarSection.stock(status)))
+                }
+                Label(SidebarSection.stock(nil).label, systemImage: SidebarSection.stock(nil).icon)
+                    .tag(Optional(SidebarSection.stock(nil)))
+            }
+            Section("交易") {
+                Label(SidebarSection.orders.label, systemImage: SidebarSection.orders.icon)
+                    .tag(Optional(SidebarSection.orders))
+            }
+            Section("进货") {
+                Label(SidebarSection.batches.label, systemImage: SidebarSection.batches.icon)
+                    .tag(Optional(SidebarSection.batches))
+            }
+            Section("客户") {
+                Label(SidebarSection.customers.label, systemImage: SidebarSection.customers.icon)
+                    .tag(Optional(SidebarSection.customers))
+            }
+        }
+    }
+
+    // MARK: - 中列
+
+    @ViewBuilder
+    private func contentColumn(searchPresented: Binding<Bool>) -> some View {
+        switch activeSection {
+        case .stock(let status):
+            InventoryTableView(
+                statusFilter: status,
+                selection: $itemSelection,
+                searchPresented: searchPresented,
+                onDeleteRequest: { pendingDelete = $0 }
+            )
+        case .orders:
+            OrdersView(selection: $orderSelection)
+        case .batches:
+            BatchesView(selection: $batchSelection)
+        case .customers:
+            CustomersView(selection: $customerSelection)
+        }
+    }
+
+    // MARK: - 详情
+
+    @ViewBuilder
+    private var detailPane: some View {
+        switch activeSection {
+        case .stock:
+            if itemSelection.count == 1, let item = selectedItems.first {
+                ItemDetailView(item: item)
+            } else if itemSelection.count > 1 {
+                EmptyState(
+                    title: "已选中 \(itemSelection.count) 台",
+                    message: "点工具栏「出库销售」批量处理，价格可逐台修改",
+                    systemImage: "square.stack.3d.up"
+                )
+            } else {
+                EmptyState(
+                    title: "选择一台机器",
+                    message: "中间列表可按序列号、型号或客户筛选",
+                    systemImage: "shippingbox"
+                )
+            }
+        case .orders:
+            if let order = selectedOrder {
+                OrderDetailView(order: order)
+            } else {
+                EmptyState(title: "选择一张单据", message: "可查看明细、重出凭证或办理退货", systemImage: "doc.text")
+            }
+        case .batches:
+            if let batch = selectedBatch {
+                BatchDetailView(batch: batch)
+            } else {
+                EmptyState(title: "选择一个批次", message: "批次里锁定汇率与运费，逐台分摊", systemImage: "shippingbox.and.arrow.backward")
+            }
+        case .customers:
+            if let customer = selectedCustomer {
+                CustomerDetailView(customer: customer, orders: allOrders)
+            } else {
+                EmptyState(title: "选择一位客户", message: "客户由单据自动汇总，无需单独建档", systemImage: "person.2")
+            }
+        }
+    }
+
+    // MARK: - 工具栏
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .primaryAction) {
+            Button {
+                appState.showingIntake = true
+            } label: {
+                Label("入库", systemImage: "plus")
+            }
+            .disabled(!activeSection.isStock)
+            .help("入库（⌘N）")
+        }
+
+        ToolbarItem(placement: .primaryAction) {
+            Button {
+                showingSale = true
+            } label: {
+                Label("出库销售", systemImage: "arrow.up.forward.square")
+            }
+            .disabled(!canSell)
+            .help("出库销售（⌘⇧S）")
+        }
+
+        ToolbarItem(placement: .primaryAction) {
+            Menu {
+                Button("批量导入 CSV…") { appState.showingImport = true }
+                Button("统计") { openWindow(id: "dashboard") }
+                Divider()
+                Button(showingInspector ? "隐藏检查器" : "显示检查器") {
+                    showingInspector.toggle()
+                }
+            } label: {
+                Label("更多", systemImage: "ellipsis.circle")
+            }
+        }
+    }
+
+    // MARK: - 派生
+
+    private var activeSection: SidebarSection {
+        section ?? .stock(.inStock)
     }
 
     private var selectedItems: [Item] {
-        allItems.filter { selection.contains($0.id) }
+        allItems.filter { itemSelection.contains($0.id) }
             .sorted { $0.serialNumber < $1.serialNumber }
     }
 
     private var canSell: Bool {
-        !selection.isEmpty && selectedItems.allSatisfy { $0.status == .inStock }
+        activeSection.isStock && !itemSelection.isEmpty && selectedItems.allSatisfy { $0.status == .inStock }
+    }
+
+    private var selectedOrder: Order? {
+        guard let orderSelection else { return nil }
+        return allOrders.first { $0.id == orderSelection }
+    }
+
+    private var selectedBatch: Batch? {
+        guard let batchSelection else { return nil }
+        return allBatches.first { $0.id == batchSelection }
+    }
+
+    private var selectedCustomer: CustomerSummary? {
+        guard let customerSelection else { return nil }
+        return CustomerSummary.build(from: allOrders).first { $0.id == customerSelection }
     }
 
     private func performBatchDelete() async {
@@ -207,45 +307,9 @@ struct RootView: View {
                 failures.append(item.serialNumber)
             }
         }
-        selection.subtract(Set(targets.map(\.id)))
+        itemSelection.subtract(Set(targets.map(\.id)))
         if !failures.isEmpty {
             deleteError = "以下机器未删除：\(failures.joined(separator: "、"))"
-        }
-    }
-
-    private var showingOrders: Bool { filter == nil }
-
-    private var selectedOrder: Order? {
-        guard let selectedOrderID else { return nil }
-        return allOrders.first { $0.id == selectedOrderID }
-    }
-
-    @ViewBuilder
-    private var detailPane: some View {
-        if showingOrders {
-            if let order = selectedOrder {
-                OrderDetailView(order: order)
-            } else {
-                EmptyState(
-                    title: "选择一张单据",
-                    message: "中间列表可搜索单号、客户或序列号",
-                    systemImage: "doc.text"
-                )
-            }
-        } else if selection.count == 1, let item = selectedItems.first {
-            ItemDetailView(item: item)
-        } else if selection.count > 1 {
-            EmptyState(
-                title: "已选中 \(selection.count) 台",
-                message: "点工具栏「出库销售」批量处理，价格可逐台修改",
-                systemImage: "square.stack.3d.up"
-            )
-        } else {
-            EmptyState(
-                title: "选择一台机器",
-                message: "中间列表可按序列号、型号或客户筛选",
-                systemImage: "shippingbox"
-            )
         }
     }
 }

@@ -996,6 +996,59 @@ struct Verify {
         check("仪表盘-毛利率 4000/11000", dashStats.todayMarginRate == Decimal(string: "36.4"),
               "\(String(describing: dashStats.todayMarginRate))")
 
+
+        // MARK: U5 客户聚合
+
+        let cusSchema = Schema([Item.self, Order.self, Batch.self])
+        let cusConfig = ModelConfiguration(schema: cusSchema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let cusContainer = try ModelContainer(for: cusSchema, configurations: [cusConfig])
+        let cus = cusContainer.mainContext
+
+        func cusItem(_ serial: String) -> Item {
+            let item = Item(serialNumber: serial, modelName: "iPhone 17", costAmount: 1000,
+                            currency: .cny, exchangeRate: 1, shippingCNY: 0, listPriceCNY: 2000)
+            cus.insert(item)
+            return item
+        }
+
+        _ = try InventoryService.sell(lines: [.init(item: cusItem("C1"), price: 2000)],
+                                      customerName: "张三", customerContact: "13800000000",
+                                      discountCNY: 0, roundingCNY: 0, paymentMethod: .cash, in: cus)
+        _ = try InventoryService.sell(lines: [.init(item: cusItem("C2"), price: 3000)],
+                                      customerName: "张三", customerContact: "13800000000",
+                                      discountCNY: 0, roundingCNY: 0, paymentMethod: .cash, in: cus)
+        // 同名不同电话，必须算两个人
+        _ = try InventoryService.sell(lines: [.init(item: cusItem("C3"), price: 1500)],
+                                      customerName: "张三", customerContact: "13900000000",
+                                      discountCNY: 0, roundingCNY: 0, paymentMethod: .cash, in: cus)
+        // 散客（无姓名），不进客户列表
+        _ = try InventoryService.sell(lines: [.init(item: cusItem("C4"), price: 2500)],
+                                      customerName: "", customerContact: "",
+                                      discountCNY: 0, roundingCNY: 0, paymentMethod: .cash, in: cus)
+        // 作废单不计入客户
+        let voidCustomerOrder = try InventoryService.sell(lines: [.init(item: cusItem("C5"), price: 4000)],
+                                                          customerName: "李四", customerContact: "13700000000",
+                                                          discountCNY: 0, roundingCNY: 0, paymentMethod: .cash, in: cus)
+        try OrderService.void(voidCustomerOrder, in: cus)
+
+        let customerOrders = try cus.fetch(FetchDescriptor<Order>())
+        let summaries = CustomerSummary.build(from: customerOrders)
+
+        check("客户-同名同电话合并为 1 人", summaries.filter { $0.contact == "13800000000" }.count == 1)
+        check("客户-合并后 2 张单", summaries.first { $0.contact == "13800000000" }?.orderCount == 2,
+              "\(String(describing: summaries.first { $0.contact == "13800000000" }?.orderCount))")
+        check("客户-合并后累计 5000",
+              summaries.first { $0.contact == "13800000000" }?.revenue == 5000,
+              "\(String(describing: summaries.first { $0.contact == "13800000000" }?.revenue))")
+        check("客户-同名异电话算两人",
+              summaries.filter { $0.name == "张三" }.count == 2,
+              "\(summaries.filter { $0.name == "张三" }.count)")
+        check("客户-散客不进列表", summaries.allSatisfy { !$0.name.isEmpty })
+        check("客户-作废单客户不出现", !summaries.contains { $0.name == "李四" })
+        check("客户-按消费额降序",
+              summaries.map(\.revenue) == summaries.map(\.revenue).sorted(by: >))
+        check("客户-台数正确", summaries.first { $0.contact == "13800000000" }?.machineCount == 2)
+
         print(failures == 0 ? "\nALL CHECKS PASSED" : "\n\(failures) CHECK(S) FAILED")
         exit(failures == 0 ? 0 : 1)
     }
