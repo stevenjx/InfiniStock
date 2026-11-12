@@ -2,7 +2,9 @@ import SwiftUI
 import SwiftData
 
 /// 侧栏分区。库存再按状态细分，其余是独立列表。
+/// 声明顺序即侧栏顺序，也和 ⌘1–⌘5 一一对应，改顺序时两处必须同时改。
 enum SidebarSection: Hashable {
+    case todos
     case stock(ItemStatus?)
     case orders
     case batches
@@ -10,6 +12,7 @@ enum SidebarSection: Hashable {
 
     var label: String {
         switch self {
+        case .todos: "待办"
         case .stock(_):
             "库存管理"
         case .orders: "销售记录"
@@ -20,6 +23,7 @@ enum SidebarSection: Hashable {
 
     var icon: String {
         switch self {
+        case .todos: "checklist"
         case .stock(_):
             "shippingbox"
         case .orders: "doc.text"
@@ -46,6 +50,7 @@ struct RootView: View {
     @State private var orderSelection: PersistentIdentifier?
     @State private var batchSelection: PersistentIdentifier?
     @State private var customerSelection: String?
+    @State private var todoSelection: TodoEntry.Key?
 
     @State private var showingSale = false
     @State private var showingInspector = false
@@ -191,10 +196,16 @@ struct RootView: View {
         .navigationTitle("")
     }
 
-    /// 销售/采购/客户三页在卡片上方多一层 KPI 结论，库存页直接是卡片。
+    /// 销售/采购/客户/待办四页在卡片上方多一层 KPI 结论，库存页直接是卡片。
     @ViewBuilder
     private func bodyColumn(searchPresented: Binding<Bool>) -> some View {
         switch activeSection {
+        case .todos:
+            VStack(spacing: Token.Space.m) {
+                TodosKpiStrip()
+                sectionBody(searchPresented: searchPresented)
+                    .cardSurface()
+            }
         case .orders:
             VStack(spacing: Token.Space.m) {
                 OrdersKpiStrip()
@@ -222,6 +233,20 @@ struct RootView: View {
     @ViewBuilder
     private func sectionBody(searchPresented: Binding<Bool>) -> some View {
         switch activeSection {
+        case .todos:
+            TodosView(
+                selection: $todoSelection,
+                searchPresented: searchPresented,
+                onOpenItem: { item in
+                    section = .stock(nil)
+                    itemSelection = [item.id]
+                },
+                onOpenBatch: { batch in
+                    section = .batches
+                    batchSelection = batch.id
+                },
+                onIntake: { appState.showingIntake = true }
+            )
         case .stock(let status):
             InventoryTableView(
                 statusFilter: status,
@@ -260,24 +285,9 @@ struct RootView: View {
                 .init(label: "成本", value: cost.mmk),
                 .init(label: "标价", value: listed.mmk),
             ]
-        case .orders, .batches, .customers:
+        case .todos, .orders, .batches, .customers:
             // 金额已由页面上方的 KPI 卡承担，页头不再重复报数
             return []
-        case .batches:
-            let cost = allBatches.reduce(Decimal(0)) { total, batch in
-                total + batch.itemList.reduce(Decimal(0)) { $0 + $1.landedCost }
-            }
-            return [
-                .init(label: "批次", value: "\(allBatches.count) 批"),
-                .init(label: "成本合计", value: cost.mmk),
-            ]
-        case .customers:
-            let summaries = CustomerSummary.build(from: allOrders)
-            let revenue = summaries.reduce(Decimal(0)) { $0 + $1.revenue }
-            return [
-                .init(label: "客户", value: "\(summaries.count) 位"),
-                .init(label: "累计消费", value: revenue.mmk),
-            ]
         }
     }
 
@@ -296,6 +306,18 @@ struct RootView: View {
     @ViewBuilder
     private var detailPane: some View {
         switch activeSection {
+        case .todos:
+            if let item = selectedTodoItem {
+                ItemDetailView(item: item)
+            } else if let batch = selectedTodoBatch {
+                BatchDetailView(batch: batch)
+            } else {
+                DetailPlaceholder(
+                    title: "选择一条待办",
+                    message: "右边是这台机器的完整信息，可直接改标价、出库或分摊运费",
+                    systemImage: "checklist"
+                )
+            }
         case .stock:
             if itemSelection.count == 1, let item = selectedItems.first {
                 ItemDetailView(item: item)
@@ -362,6 +384,18 @@ struct RootView: View {
     private var selectedOrder: Order? {
         guard let orderSelection else { return nil }
         return allOrders.first { $0.id == orderSelection }
+    }
+
+    /// 待办的选中项按目标反查实体，而不是按 TodoEntry 反查：
+    /// 定价一改，那条待办就消失了，但右栏不该跟着变空。
+    private var selectedTodoItem: Item? {
+        guard let todoSelection else { return nil }
+        return allItems.first { $0.persistentModelID == todoSelection.target }
+    }
+
+    private var selectedTodoBatch: Batch? {
+        guard let todoSelection else { return nil }
+        return allBatches.first { $0.persistentModelID == todoSelection.target }
     }
 
     private var selectedBatch: Batch? {

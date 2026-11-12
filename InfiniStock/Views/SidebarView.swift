@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 /// 侧栏。刻意不用 List(selection:)，而是每行一个显式按钮自己管选中态：
 /// 系统 List 的 selection 在 Optional 标签 + 分节结构下会静默失效，
@@ -7,16 +8,25 @@ struct SidebarView: View {
     @Binding var selection: SidebarSection
     var onSettings: () -> Void = {}
 
+    @Query private var items: [Item]
+    @Query private var batches: [Batch]
+
+    /// 侧栏只报条数，不报明细——明细在待办页里
+    private var todoCount: Int {
+        TodoCenter.build(items: items, batches: batches).count
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             header
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 2) {
+                    row(.todos)
                     row(.stock(nil))
                     row(.orders)
-                    row(.customers)
                     row(.batches)
+                    row(.customers)
                 }
                 .padding(.horizontal, Token.Space.s)
                 .padding(.top, Token.Space.s)
@@ -115,6 +125,19 @@ struct SidebarView: View {
                     .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
                     .foregroundStyle(isSelected ? Token.Ink.onAccent : Token.Ink.primary)
                 Spacer(minLength: 0)
+                if section == .todos, todoCount > 0 {
+                    Text("\(todoCount)")
+                        .font(.system(size: 10, weight: .semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(isSelected ? Token.Ink.onAccent : Tone.warn.color)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 1)
+                        .background(
+                            isSelected ? Token.Ink.onAccent.opacity(0.18) : Tone.warn.fill,
+                            in: .capsule
+                        )
+                        .accessibilityLabel(Text("\(todoCount) 项待办"))
+                }
             }
             .padding(.horizontal, Token.Space.s)
             .frame(height: 32)

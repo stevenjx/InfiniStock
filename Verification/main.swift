@@ -1099,6 +1099,96 @@ struct Verify {
               summaries.map(\.revenue) == summaries.map(\.revenue).sorted(by: >))
         check("客户-台数正确", summaries.first { $0.contact == "13800000000" }?.machineCount == 2)
 
+        // MARK: 待办中心
+
+        let todoSchema = Schema([Item.self, Order.self, Batch.self])
+        let todoConfig = ModelConfiguration(schema: todoSchema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let todoContainer = try ModelContainer(for: todoSchema, configurations: [todoConfig])
+        let todoCtx = todoContainer.mainContext
+
+        func todoItem(
+            _ serial: String, price: Decimal, cost: Decimal = 1000,
+            health: Int = 92, cycles: Int = 200, daysAgo: Int = 0
+        ) -> Item {
+            let item = Item(serialNumber: serial, modelName: "MacBook Air M2",
+                            costCNY: cost, exchangeRate: 1, shipping: 0, listPrice: price,
+                            batteryHealth: health, batteryCycles: cycles)
+            todoCtx.insert(item)
+            if daysAgo > 0 {
+                item.inboundAt = Calendar.current.date(byAdding: .day, value: -daysAgo, to: .now) ?? .now
+            }
+            return item
+        }
+
+        _ = todoItem("T-UNPRICED", price: 0)
+        _ = todoItem("T-CHEAP", price: 800, cost: 1000)
+        // 电池偏弱 + 库龄超期：同一台机器两条待办，用于验证金额去重
+        _ = todoItem("T-BATT", price: 2000, health: 76, cycles: 900, daysAgo: 70)
+        _ = todoItem("T-AGED", price: 2000, daysAgo: 75)
+        _ = todoItem("T-OK", price: 2000)
+        let soldTodo = todoItem("T-SOLD", price: 2000, health: 70)
+        soldTodo.status = .sold
+        soldTodo.soldAt = .now
+
+        // 批次待分摊
+        let pendingBatch = Batch()
+        pendingBatch.name = "曼德勒补货"
+        pendingBatch.exchangeRate = 400
+        todoCtx.insert(pendingBatch)
+        var pendingDraft = IntakeDraft()
+        pendingDraft.serialNumber = "T-BATCH1"
+        pendingDraft.modelName = "MacBook Pro 14"
+        pendingDraft.costCNY = "1000"
+        pendingDraft.exchangeRate = "400"
+        pendingDraft.listPrice = "600000"
+        _ = try InventoryService.intake(pendingDraft, batch: pendingBatch, in: todoCtx)
+        pendingBatch.totalShipping = 12000
+
+        // 已分摊完的批次不该出现
+        let settledBatch = Batch()
+        settledBatch.name = "已摊批次"
+        settledBatch.exchangeRate = 400
+        todoCtx.insert(settledBatch)
+        var settledDraft = IntakeDraft()
+        settledDraft.serialNumber = "T-BATCH2"
+        settledDraft.modelName = "MacBook Pro 14"
+        settledDraft.costCNY = "1000"
+        settledDraft.exchangeRate = "400"
+        settledDraft.listPrice = "600000"
+        _ = try InventoryService.intake(settledDraft, batch: settledBatch, in: todoCtx)
+
+        let todos = TodoCenter.build(
+            items: try todoCtx.fetch(FetchDescriptor<Item>()),
+            batches: try todoCtx.fetch(FetchDescriptor<Batch>())
+        )
+        func hasTodo(_ kind: TodoKind, _ serial: String) -> Bool {
+            todos.contains { $0.kind == kind && $0.subtitle == serial }
+        }
+
+        check("待办-未标价", hasTodo(.unpriced, "T-UNPRICED"))
+        check("待办-标价低于成本",
+              todos.first { $0.subtitle == "T-CHEAP" }?.kind == .negativeMargin)
+        check("待办-亏本金额 = 成本 − 标价",
+              todos.first { $0.subtitle == "T-CHEAP" }?.amount == 200,
+              "\(String(describing: todos.first { $0.subtitle == "T-CHEAP" }?.amount))")
+        check("待办-电池偏弱", hasTodo(.weakBattery, "T-BATT"))
+        check("待办-库龄超期", hasTodo(.aged, "T-AGED"))
+        check("待办-正常机器不进待办", !todos.contains { $0.subtitle == "T-OK" })
+        check("待办-已售机器不进待办", !todos.contains { $0.subtitle == "T-SOLD" })
+        check("待办-批次待分摊",
+              todos.contains { $0.kind == .pendingAllocation && $0.amount == 12000 },
+              "\(todos.filter { $0.kind == .pendingAllocation }.map(\.amount))")
+        check("待办-已分摊批次不进待办", !todos.contains { $0.subtitle == "已摊批次" })
+        check("待办-先堵漏后慢销",
+              todos.first?.kind == .pendingAllocation && todos.last?.kind == .aged,
+              "\(todos.map(\.kind.title))")
+        check("待办-涉及成本按机器去重", TodoCenter.involvedCost(todos) == 4000,
+              "\(TodoCenter.involvedCost(todos))")
+        check("待办-涉及台数按机器去重", TodoCenter.involvedCount(todos) == 4,
+              "\(TodoCenter.involvedCount(todos))")
+        check("待办-分类计数", TodoCenter.count(todos, of: .aged) == 2,
+              "\(TodoCenter.count(todos, of: .aged))")
+
         print(failures == 0 ? "\nALL CHECKS PASSED" : "\n\(failures) CHECK(S) FAILED")
         exit(failures == 0 ? 0 : 1)
     }

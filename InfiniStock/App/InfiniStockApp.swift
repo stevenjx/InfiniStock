@@ -53,14 +53,16 @@ struct InfiniStockApp: App {
                 .keyboardShortcut("d", modifiers: [.command, .shift])
             }
             CommandGroup(after: .sidebar) {
-                Button("库存管理") { appState.sectionRequest = .stock(.inStock) }
+                Button("待办") { appState.sectionRequest = .todos }
                     .keyboardShortcut("1", modifiers: .command)
-                Button("销售记录") { appState.sectionRequest = .orders }
+                Button("库存管理") { appState.sectionRequest = .stock(.inStock) }
                     .keyboardShortcut("2", modifiers: .command)
-                Button("采购记录") { appState.sectionRequest = .batches }
+                Button("销售记录") { appState.sectionRequest = .orders }
                     .keyboardShortcut("3", modifiers: .command)
-                Button("客户管理") { appState.sectionRequest = .customers }
+                Button("采购记录") { appState.sectionRequest = .batches }
                     .keyboardShortcut("4", modifiers: .command)
+                Button("客户管理") { appState.sectionRequest = .customers }
+                    .keyboardShortcut("5", modifiers: .command)
             }
             CommandGroup(replacing: .appSettings) {
                 Button("设置…") {
