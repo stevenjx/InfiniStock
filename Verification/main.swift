@@ -1189,6 +1189,42 @@ struct Verify {
         check("待办-分类计数", TodoCenter.count(todos, of: .aged) == 2,
               "\(TodoCenter.count(todos, of: .aged))")
 
+        // MARK: 零价成交
+
+        let zeroPriceItem = todoItem("T-ZERO", price: 2000)
+        do {
+            _ = try InventoryService.sell(
+                lines: [.init(item: zeroPriceItem, price: 0)],
+                customerName: "", customerContact: "",
+                discount: 0, rounding: 0, paymentMethod: .cash, in: todoCtx
+            )
+            check("零价成交被拦截", false, "未抛错")
+        } catch {
+            check("零价成交被拦截", true)
+        }
+        check("零价成交不改变机器状态", zeroPriceItem.status == .inStock, zeroPriceItem.status.label)
+
+        // MARK: 配置解码兼容
+
+        // 旧版配置没有 defaultExchangeRate 字段。合成 Codable 会在这里抛 keyNotFound，
+        // 而 load() 用 try? 吞掉后返回空白配置——店名、电话、地址会静默消失。
+        let legacyJSON = #"{"shopName":"曼德勒小店","phone":"0912345","address":"80 街","warrantyDays":14,"footnote":"谢谢惠顾"}"#
+        let legacySettings = try JSONDecoder().decode(ShopSettings.self, from: Data(legacyJSON.utf8))
+        check("配置-旧 JSON 保留店名", legacySettings.shopName == "曼德勒小店", legacySettings.shopName)
+        check("配置-旧 JSON 保留电话", legacySettings.phone == "0912345", legacySettings.phone)
+        check("配置-旧 JSON 保留保修天数", legacySettings.warrantyDays == 14, "\(legacySettings.warrantyDays)")
+        check("配置-缺失的新字段回落默认值", legacySettings.defaultExchangeRate == 0,
+              "\(legacySettings.defaultExchangeRate)")
+
+        var rateSettings = legacySettings
+        rateSettings.defaultExchangeRate = 420
+        let rateRoundTrip = try JSONDecoder().decode(
+            ShopSettings.self, from: try JSONEncoder().encode(rateSettings)
+        )
+        check("配置-往返保留默认汇率", rateRoundTrip.defaultExchangeRate == 420,
+              "\(rateRoundTrip.defaultExchangeRate)")
+        check("配置-往返保留店名", rateRoundTrip.shopName == "曼德勒小店", rateRoundTrip.shopName)
+
         print(failures == 0 ? "\nALL CHECKS PASSED" : "\n\(failures) CHECK(S) FAILED")
         exit(failures == 0 ? 0 : 1)
     }

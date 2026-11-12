@@ -53,6 +53,10 @@ struct RootView: View {
     @State private var todoSelection: TodoEntry.Key?
 
     @State private var showingSale = false
+    /// 打开出库单那一刻的机器快照。不能直接把派生的 selectedItems 传进 sheet：
+    /// 它是每次 body 重算出来的新数组，而 sheet 内部的 @State 只在首次 init 时初始化，
+    /// 两边一旦错位，输入框里的价格就会对不上机器。
+    @State private var saleItems: [Item] = []
     @State private var showingInspector = false
     @State private var pendingDelete: [Item] = []
     @State private var deleteError: String?
@@ -84,7 +88,7 @@ struct RootView: View {
             NavigationStack { SettingsView() }
                 .frame(minWidth: 520, minHeight: 520)
         }
-        .sheet(isPresented: $showingSale) { SaleSheet(items: selectedItems) }
+        .sheet(isPresented: $showingSale) { SaleSheet(items: saleItems) }
         .onChange(of: appState.showingDashboard) { _, showing in
             if showing {
                 openWindow(id: "dashboard")
@@ -94,7 +98,7 @@ struct RootView: View {
         .onChange(of: appState.saleRequest) { _, requested in
             guard requested else { return }
             appState.saleRequest = false
-            if canSell { showingSale = true }
+            if canSell { openSale() }
         }
         .onChange(of: appState.sectionRequest) { _, request in
             guard let request else { return }
@@ -161,7 +165,7 @@ struct RootView: View {
                     .help("入库（⌘N）")
 
                     Button {
-                        showingSale = true
+                        openSale()
                     } label: {
                         Label("出库", systemImage: "arrow.up.forward.square")
                     }
@@ -406,6 +410,12 @@ struct RootView: View {
     private var selectedCustomer: CustomerSummary? {
         guard let customerSelection else { return nil }
         return CustomerSummary.build(from: allOrders).first { $0.id == customerSelection }
+    }
+
+    private func openSale() {
+        guard canSell else { return }
+        saleItems = selectedItems
+        showingSale = true
     }
 
     private func performBatchDelete() async {

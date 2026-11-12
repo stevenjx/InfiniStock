@@ -161,6 +161,11 @@ enum InventoryService {
         for line in lines where line.item.status != .inStock {
             throw InventoryError.notInStock(line.item.serialNumber)
         }
+        // 0 元成交会让"台数 +1、销售额 +0"，统计口径直接歪掉。
+        // 赠送要走折扣（可追溯），不能靠把单价填成 0。
+        if let bad = lines.first(where: { $0.price <= 0 }) {
+            throw InventoryError.invalidAmount("\(bad.item.serialNumber) 的成交价（必须大于 0）")
+        }
         guard discount >= 0, rounding >= 0 else { throw InventoryError.invalidDiscount }
 
         let subtotal = lines.reduce(Decimal(0)) { $0 + $1.price }.rounded(2)

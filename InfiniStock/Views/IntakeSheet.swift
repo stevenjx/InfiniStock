@@ -8,6 +8,7 @@ struct IntakeSheet: View {
     @Query private var batches: [Batch]
 
     @State private var draft = IntakeDraft()
+    @State private var settings = ShopSettings.load()
     @State private var selectedBatch: Batch?
     @State private var showingBatchSheet = false
     @State private var errorMessage: String?
@@ -64,8 +65,18 @@ struct IntakeSheet: View {
                 Section("成本") {
                     TextField("进价（人民币 ¥）", text: $draft.costCNY)
                         .decimalKeyboard()
-                    TextField("汇率（1 元 = ? 缅币）", text: $draft.exchangeRate)
-                        .decimalKeyboard()
+                    HStack(spacing: Token.Space.s) {
+                        TextField("汇率（1 元 = ? 缅币）", text: $draft.exchangeRate)
+                            .decimalKeyboard()
+                        if settings.defaultExchangeRate > 0 {
+                            Button("上次 \(Money.text(settings.defaultExchangeRate))") {
+                                draft.exchangeRate = Money.text(settings.defaultExchangeRate)
+                            }
+                            .font(.caption)
+                            .buttonStyle(.link)
+                            .fixedSize()
+                        }
+                    }
                     TextField("运费（缅币 K）", text: $draft.shipping)
                         .decimalKeyboard()
                     LabeledContent("总进价（缅币）", value: draft.previewLandedCost.mmk)
@@ -115,6 +126,11 @@ struct IntakeSheet: View {
                         .padding(.bottom, 12)
                 }
             }
+            .task {
+                if draft.exchangeRate.isEmpty, settings.defaultExchangeRate > 0 {
+                    draft.exchangeRate = Money.text(settings.defaultExchangeRate)
+                }
+            }
         }
     }
 
@@ -122,7 +138,8 @@ struct IntakeSheet: View {
         do {
             let item = try InventoryService.intake(draft, batch: selectedBatch, in: context)
             let savedSerial = item.serialNumber
-            draft = IntakeDraft()
+            rememberRate()
+            resetDraft()
             savedMessage = "已入库 \(savedSerial)"
             Task {
                 try? await Task.sleep(for: .seconds(1.2))
@@ -131,5 +148,22 @@ struct IntakeSheet: View {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    /// 连续入库时只清空这台机器自己的字段，汇率留着——
+    /// 它一天要输几十次，清掉等于逼人反复手打。
+    private func resetDraft() {
+        let rate = draft.exchangeRate
+        draft = IntakeDraft()
+        draft.exchangeRate = rate
+    }
+
+    /// 这次真的用上了，就记成默认值。只在入库成功后调用，
+    /// 输错或校验失败的汇率不会被记住。
+    private func rememberRate() {
+        guard let rate = Money.parse(draft.exchangeRate), rate > 0,
+              rate != settings.defaultExchangeRate else { return }
+        settings.defaultExchangeRate = rate
+        settings.save()
     }
 }
