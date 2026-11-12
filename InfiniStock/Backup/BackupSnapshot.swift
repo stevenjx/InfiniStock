@@ -3,11 +3,13 @@ import Foundation
 /// 备份快照。金额一律以字符串编码——JSONEncoder 走 Double 会丢精度，
 /// 1234.56 存成 1234.5599999999999 这种事在成本账上不能接受。
 ///
+/// 格式版本 5 增加单据实收金额（赊账）；版本 4 及更早的备份仍可恢复，
+/// 缺 paidAmount 时按「已全额收讫」处理，不会把历史单据变成欠款。
 /// 格式版本 4 起币种口径固定：进价人民币、汇率「1 元 = N 缅币」，
 /// 运费 / 总进价 / 卖价 / 毛利全部是缅币。版本 3 及更早的备份用的是多币种口径，
 /// 金额含义不同，静默恢复会把账算错，因此直接拒绝并要求重新导出。
 struct BackupSnapshot: Codable {
-    static let currentFormatVersion = 4
+    static let currentFormatVersion = 5
     static let minimumFormatVersion = 4
 
     var formatVersion: Int
@@ -66,6 +68,9 @@ struct BackupSnapshot: Codable {
         var sequenceNumber: Int
         var returnedAmount: String
         var returnedCount: Int
+        /// 格式版本 5 起记录实收；缺省表示当年一次性收讫
+        var paidAmount: String?
+        var paidAt: Date?
     }
 
     struct BatchDTO: Codable {

@@ -28,6 +28,8 @@ struct CustomerSummary: Identifiable {
     let lastPurchase: Date
     /// 最近一次购买里最靠前的一台型号，用来判断"他还需要什么"
     let lastModel: String
+    /// 欠款合计。赊账客户的这一项不该被算进"累计消费"就完事
+    let outstanding: Decimal
 
     var marginRate: Decimal? {
         guard revenue > 0 else { return nil }
@@ -74,7 +76,8 @@ struct CustomerSummary: Identifiable {
                 revenue: group.reduce(Decimal(0)) { $0 + $1.total },
                 profit: group.reduce(Decimal(0)) { $0 + $1.profit },
                 lastPurchase: latest.createdAt,
-                lastModel: latest.itemList.first?.modelName ?? ""
+                lastModel: latest.itemList.first?.modelName ?? "",
+                outstanding: group.reduce(Decimal(0)) { $0 + $1.outstanding }
             )
         }
         .sorted { $0.revenue > $1.revenue }

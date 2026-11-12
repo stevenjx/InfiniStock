@@ -79,7 +79,9 @@ enum BackupService {
                 sequenceYear: order.sequenceYear,
                 sequenceNumber: order.sequenceNumber,
                 returnedAmount: order.returnedAmount.plainString,
-                returnedCount: order.returnedCount
+                returnedCount: order.returnedCount,
+                paidAmount: order.paidAmount?.plainString,
+                paidAt: order.paidAt
             )
         }
 
@@ -251,6 +253,9 @@ enum BackupService {
             order.voidedAt = dto.voidedAt
             order.returnedAmount = dto.returnedAmount.decimalValue
             order.returnedCount = dto.returnedCount
+            // 老备份没有这一项，保持 nil = 已全额收讫
+            order.paidAmount = dto.paidAmount.map { $0.decimalValue }
+            order.paidAt = dto.paidAt
             order.sequenceYear = dto.sequenceYear
             order.sequenceNumber = dto.sequenceNumber
             context.insert(order)

@@ -31,12 +31,34 @@ final class Order {
     var returnedAmount: Decimal = 0
     var returnedCount: Int = 0
 
+    /// 已收金额。nil 表示这条记录早于「赊账」功能，按已全额收讫处理——
+    /// 否则升级当天所有历史单据都会突然变成欠款。
+    var paidAmount: Decimal?
+    /// 最后一次收款时间
+    var paidAt: Date?
+
     @Relationship(deleteRule: .nullify, inverse: \Item.order)
     var items: [Item]? = []
 
     init() {}
 
     var itemList: [Item] { items ?? [] }
+
+    /// 已收：没记录过就按应收全额算
+    var collected: Decimal {
+        paidAmount ?? total
+    }
+
+    /// 未收。退货会让 total 变小，多收的部分不在这里体现（退款是线下动作）
+    var outstanding: Decimal {
+        let value = total - collected
+        return value > 0 ? value : 0
+    }
+
+    /// 有欠款且单据仍然有效
+    var isOutstanding: Bool {
+        !isVoided && outstanding > 0
+    }
 
     var paymentMethod: PaymentMethod {
         get { PaymentMethod(rawValue: paymentMethodRaw) ?? .cash }
@@ -63,6 +85,9 @@ enum OrderError: LocalizedError {
     case noItems(String)
     case sequenceExhausted(Int)
     case notInOrder(String, String)
+    case invalidPayment
+    case nothingToCollect(String)
+    case overCollected(Decimal)
 
     var errorDescription: String? {
         switch self {
@@ -70,6 +95,9 @@ enum OrderError: LocalizedError {
         case .noItems(let number): "单据 \(number) 没有关联机器，无法操作"
         case .sequenceExhausted(let year): "\(year) 年单号已用尽（9999），请检查数据"
         case .notInOrder(let serial, let number): "序列号 \(serial) 不属于单据 \(number)"
+        case .invalidPayment: "收款金额必须大于 0"
+        case .nothingToCollect(let number): "单据 \(number) 没有未收金额"
+        case .overCollected(let due): "收款金额超过未收的 \(due.mmk)"
         }
     }
 }

@@ -9,6 +9,7 @@ enum SidebarSection: Hashable {
     case orders
     case batches
     case customers
+    case report
 
     var label: String {
         switch self {
@@ -18,6 +19,7 @@ enum SidebarSection: Hashable {
         case .orders: "销售记录"
         case .batches: "采购记录"
         case .customers: "客户管理"
+        case .report: "报表"
         }
     }
 
@@ -29,6 +31,7 @@ enum SidebarSection: Hashable {
         case .orders: "doc.text"
         case .batches: "cart"
         case .customers: "person.2"
+        case .report: "chart.bar.doc.horizontal"
         }
     }
 
@@ -51,6 +54,9 @@ struct RootView: View {
     @State private var batchSelection: PersistentIdentifier?
     @State private var customerSelection: String?
     @State private var todoSelection: TodoEntry.Key?
+    @State private var reportRange: ReportRange = .thisMonth
+    /// 只在 Debug 截图核对时被 `ui.flag` 赋值，Release 恒为 nil。
+    @State private var debugScheme: ColorScheme?
 
     @State private var showingSale = false
     /// 打开出库单那一刻的机器快照。不能直接把派生的 selectedItems 传进 sheet：
@@ -134,10 +140,51 @@ struct RootView: View {
         .task {
             #if DEBUG
             DebugSeed.seedIfRequested(modelContext)
+            applyDebugUIRequest()
             #endif
             BackupService.autoBackupIfNeeded(from: modelContext)
         }
+        .preferredColorScheme(debugScheme)
     }
+
+    // MARK: - 调试入口
+
+    #if DEBUG
+    /// 截图核对用的入口。参数走文件而不是启动参数：`open --args` 只在首次冷启动时
+    /// 才把参数递进来，重开一次就只剩 argv[0]，靠它做验收会时灵时不灵。
+    ///
+    ///   ~/Library/Containers/com.infinistock.app/Data/Library/Application Support/ui.flag
+    ///
+    /// 内容按行写 `section=report` / `dark`，读完即删。
+    /// 不参与 Release 构建，也不碰 UserDefaults。
+    private func applyDebugUIRequest() {
+        guard let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            return
+        }
+        let flag = support.appendingPathComponent("ui.flag")
+        guard let text = try? String(contentsOf: flag, encoding: .utf8) else { return }
+        try? FileManager.default.removeItem(at: flag)
+
+        let lines = text.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+        func value(_ name: String) -> String? {
+            lines.first { $0.hasPrefix("\(name)=") }?
+                .split(separator: "=", maxSplits: 1)
+                .last
+                .map(String.init)
+        }
+
+        switch value("section") {
+        case "todos": section = .todos
+        case "orders": section = .orders
+        case "batches": section = .batches
+        case "customers": section = .customers
+        case "report": section = .report
+        default: break
+        }
+
+        if lines.contains("dark") { debugScheme = .dark }
+    }
+    #endif
 
     // MARK: - 侧栏
 
@@ -228,6 +275,9 @@ struct RootView: View {
                 sectionBody(searchPresented: searchPresented)
                     .cardSurface()
             }
+        case .report:
+            sectionBody(searchPresented: searchPresented)
+                .cardSurface()
         case .stock:
             sectionBody(searchPresented: searchPresented)
                 .cardSurface()
@@ -248,6 +298,10 @@ struct RootView: View {
                 onOpenBatch: { batch in
                     section = .batches
                     batchSelection = batch.id
+                },
+                onOpenOrder: { order in
+                    section = .orders
+                    orderSelection = order.id
                 },
                 onIntake: { appState.showingIntake = true }
             )
@@ -274,6 +328,8 @@ struct RootView: View {
                 searchPresented: searchPresented,
                 onOpenStock: { section = .stock(.inStock) }
             )
+        case .report:
+            ReportView(range: $reportRange)
         }
     }
 
@@ -289,7 +345,7 @@ struct RootView: View {
                 .init(label: "成本", value: cost.mmk),
                 .init(label: "标价", value: listed.mmk),
             ]
-        case .todos, .orders, .batches, .customers:
+        case .todos, .orders, .batches, .customers, .report:
             // 金额已由页面上方的 KPI 卡承担，页头不再重复报数
             return []
         }
@@ -315,6 +371,8 @@ struct RootView: View {
                 ItemDetailView(item: item)
             } else if let batch = selectedTodoBatch {
                 BatchDetailView(batch: batch)
+            } else if let order = selectedTodoOrder {
+                OrderDetailView(order: order)
             } else {
                 DetailPlaceholder(
                     title: "选择一条待办",
@@ -357,6 +415,8 @@ struct RootView: View {
                     systemImage: "shippingbox.and.arrow.backward"
                 )
             }
+        case .report:
+            ReportScopePanel(range: reportRange)
         case .customers:
             if let customer = selectedCustomer {
                 CustomerDetailView(customer: customer, orders: allOrders)
@@ -400,6 +460,11 @@ struct RootView: View {
     private var selectedTodoBatch: Batch? {
         guard let todoSelection else { return nil }
         return allBatches.first { $0.persistentModelID == todoSelection.target }
+    }
+
+    private var selectedTodoOrder: Order? {
+        guard let todoSelection else { return nil }
+        return allOrders.first { $0.persistentModelID == todoSelection.target }
     }
 
     private var selectedBatch: Batch? {

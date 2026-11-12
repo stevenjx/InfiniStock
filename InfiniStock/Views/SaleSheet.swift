@@ -19,6 +19,8 @@ struct SaleSheet: View {
     @State private var customerContact = ""
     @State private var discountText = ""
     @State private var roundingText = ""
+    /// 实收金额。留空表示当场全额收讫，填了就按差额记欠款。
+    @State private var paidText = ""
     @State private var paymentMethod: PaymentMethod = .cash
     @State private var errorMessage: String?
     /// 出库成功后不立刻关窗：单号、实收、毛利要让人看见一眼，
@@ -49,6 +51,17 @@ struct SaleSheet: View {
     }
 
     private var profit: Decimal { payable - landedTotal }
+
+    /// 实收：留空即全额，填了就夹在 0…应收 之间（多给的是找零）
+    private var received: Decimal {
+        guard let parsed = Money.parse(paidText) else { return payable }
+        return min(max(parsed, 0), payable)
+    }
+
+    private var outstanding: Decimal {
+        let value = payable - received
+        return value > 0 ? value : 0
+    }
 
     /// 毛利率以实收为分母，和仪表盘、单据上的口径一致
     private var marginRate: Decimal? {
@@ -151,7 +164,11 @@ struct SaleSheet: View {
                     .monospaced()
 
                 VStack(spacing: Token.Space.xs) {
-                    KeyValueRow(label: "实收", value: order.total.mmk)
+                    KeyValueRow(label: "应收", value: order.total.mmk)
+                    KeyValueRow(label: "实收", value: order.collected.mmk)
+                    if order.outstanding > 0 {
+                        KeyValueRow(label: "未收", value: order.outstanding.mmk, valueTone: .warn)
+                    }
                     KeyValueRow(label: "毛利", value: order.profit.signedMMK,
                                 valueTone: order.profit < 0 ? .danger : .ok)
                     KeyValueRow(label: "台数", value: "\(order.itemList.count) 台")
@@ -307,6 +324,44 @@ struct SaleSheet: View {
                     ) { paymentMethod = $0 }
                     Spacer(minLength: 0)
                 }
+
+                // 实收留空就是全额，只有赊账才需要动手填
+                HStack(spacing: Token.Space.s) {
+                    Text("实收")
+                        .font(Token.Typography.caption)
+                        .foregroundStyle(Token.Ink.secondary)
+                    TextField("全额", text: $paidText)
+                        .textFieldStyle(.plain)
+                        .font(Token.Typography.money)
+                        .multilineTextAlignment(.trailing)
+                        .padding(.horizontal, 8)
+                        .frame(height: 26)
+                        .background(Token.Surface.field, in: .rect(cornerRadius: Token.Radius.control))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: Token.Radius.control)
+                                .strokeBorder(Token.Border.hairline, lineWidth: 1)
+                        }
+                        .frame(width: 132)
+                        .decimalKeyboard()
+                    // 空着就代表全额，此时再摆一个「全额」按钮只是重复一遍占位符，
+                    // 还让人以为要按一下才算数。填了金额才出现复位入口。
+                    if !paidText.isEmpty {
+                        Button("全额") { paidText = "" }
+                            .buttonStyle(.link)
+                            .font(Token.Typography.caption)
+                            .fixedSize()
+                    }
+                    Spacer(minLength: 0)
+                    if outstanding > 0 {
+                        Text("欠 \(outstanding.mmk)")
+                            .font(Token.Typography.caption.weight(.medium))
+                            .foregroundStyle(Token.Status.warn)
+                    } else {
+                        Text("已收讫")
+                            .font(Token.Typography.caption)
+                            .foregroundStyle(Token.Status.ok)
+                    }
+                }
             }
         }
     }
@@ -425,6 +480,7 @@ struct SaleSheet: View {
                 discount: discount,
                 rounding: rounding,
                 paymentMethod: paymentMethod,
+                paid: Money.parse(paidText) == nil ? nil : received,
                 in: context
             )
             completed = order

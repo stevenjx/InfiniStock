@@ -113,6 +113,16 @@ struct DashboardContent: View {
                 tone: .warn,
                 delta: "标价合计 \(stats.stockListedValue.mmk)"
             )
+            StatCard(
+                title: "应收未收",
+                value: stats.outstandingAmount.mmk,
+                systemImage: "exclamationmark.bubble.fill",
+                tone: stats.outstandingAmount > 0 ? .danger : .ok,
+                delta: stats.outstandingOrderCount > 0
+                    ? "\(stats.outstandingOrderCount) 张单未收讫"
+                    : "全部收讫",
+                deltaTone: stats.outstandingAmount > 0 ? .danger : .ok
+            )
         }
     }
 

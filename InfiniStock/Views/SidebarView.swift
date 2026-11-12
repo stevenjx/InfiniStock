@@ -10,10 +10,12 @@ struct SidebarView: View {
 
     @Query private var items: [Item]
     @Query private var batches: [Batch]
+    @Query private var orders: [Order]
 
     /// 侧栏只报条数，不报明细——明细在待办页里
     private var todoCount: Int {
-        TodoCenter.build(items: items, batches: batches).count
+        TodoCenter.build(items: items, batches: batches, orders: orders,
+                                 currentRate: ShopSettings.load().defaultExchangeRate).count
     }
 
     var body: some View {
@@ -27,6 +29,7 @@ struct SidebarView: View {
                     row(.orders)
                     row(.batches)
                     row(.customers)
+                    row(.report)
                 }
                 .padding(.horizontal, Token.Space.s)
                 .padding(.top, Token.Space.s)

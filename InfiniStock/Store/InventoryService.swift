@@ -146,6 +146,7 @@ enum InventoryService {
     }
 
     /// 出库：校验在库 → 逐台写成交价 → 计算折扣与毛利 → 生成连续单号
+    /// - Parameter paid: 实收金额。nil 表示当场全额收讫；小于应收即记为欠款。
     @discardableResult
     static func sell(
         lines: [SaleLine],
@@ -154,6 +155,7 @@ enum InventoryService {
         discount: Decimal,
         rounding: Decimal,
         paymentMethod: PaymentMethod,
+        paid: Decimal? = nil,
         in context: ModelContext,
         now: Date = .now
     ) throws -> Order {
@@ -167,6 +169,7 @@ enum InventoryService {
             throw InventoryError.invalidAmount("\(bad.item.serialNumber) 的成交价（必须大于 0）")
         }
         guard discount >= 0, rounding >= 0 else { throw InventoryError.invalidDiscount }
+        if let paid, paid < 0 { throw InventoryError.invalidAmount("实收金额") }
 
         let subtotal = lines.reduce(Decimal(0)) { $0 + $1.price }.rounded(2)
         guard discount + rounding <= subtotal else { throw InventoryError.discountTooLarge(subtotal) }
@@ -201,6 +204,11 @@ enum InventoryService {
         // 毛利按「实收 − 总成本」算，折扣必须计入，否则毛利虚高
         order.total = payable
         order.profit = (payable - cost).rounded(2)
+
+        // 实收只记到应收为止：多给的是找零，不该进账
+        let received = min(max(paid ?? payable, 0), payable).rounded(2)
+        order.paidAmount = received
+        order.paidAt = now
 
         try context.save()
         lines.forEach { SpotlightIndexer.index($0.item) }

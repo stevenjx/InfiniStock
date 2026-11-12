@@ -63,6 +63,8 @@ struct InfiniStockApp: App {
                     .keyboardShortcut("4", modifiers: .command)
                 Button("客户管理") { appState.sectionRequest = .customers }
                     .keyboardShortcut("5", modifiers: .command)
+                Button("报表") { appState.sectionRequest = .report }
+                    .keyboardShortcut("6", modifiers: .command)
             }
             CommandGroup(replacing: .appSettings) {
                 Button("设置…") {

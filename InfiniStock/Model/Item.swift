@@ -110,6 +110,28 @@ final class Item {
         return max(0, calendar.dateComponents([.day], from: start, to: end).day ?? 0)
     }
 
+    /// 回本汇率：卖价换回人民币刚好覆盖进价时的汇率。
+    ///
+    /// 推导：卖价扣掉缅币运费后按汇率 R 换回人民币，要 ≥ 进价人民币，
+    /// 即 (标价 − 运费) / R ≥ 进价，解得 R ≤ (标价 − 运费) / 进价。
+    /// 当前汇率高于它，说明按今天的汇率结汇是亏的——缅币贬值时最容易被忽略的坑。
+    var breakEvenRate: Decimal? {
+        guard costCNY > 0, listPrice > 0 else { return nil }
+        let net = listPrice - shipping
+        guard net > 0 else { return nil }
+        return (net / costCNY).rounded(1)
+    }
+
+    /// 按当前汇率结汇后的人民币亏损额；不亏时返回 0
+    func currencyLoss(at rate: Decimal) -> Decimal {
+        guard rate > 0, costCNY > 0, listPrice > 0 else { return 0 }
+        let net = listPrice - shipping
+        guard net > 0 else { return 0 }
+        let recovered = (net / rate).rounded(2)
+        let loss = costCNY - recovered
+        return loss > 0 ? loss.rounded(2) : 0
+    }
+
     /// 超过该天数仍未售出即视为呆滞
     static let overdueDays = 60
 

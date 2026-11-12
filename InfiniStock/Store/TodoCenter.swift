@@ -5,8 +5,10 @@ import SwiftData
 /// 再议价（电池），最后才是慢销。
 enum TodoKind: String, CaseIterable, Identifiable {
     case pendingAllocation
+    case outstanding
     case unpriced
     case negativeMargin
+    case currencyRisk
     case weakBattery
     case aged
 
@@ -16,8 +18,10 @@ enum TodoKind: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .pendingAllocation: "待分摊"
+        case .outstanding: "应收未收"
         case .unpriced: "未标价"
         case .negativeMargin: "低于成本"
+        case .currencyRisk: "汇率亏损"
         case .weakBattery: "电池偏弱"
         case .aged: "库龄超期"
         }
@@ -27,8 +31,10 @@ enum TodoKind: String, CaseIterable, Identifiable {
     var actionHint: String {
         switch self {
         case .pendingAllocation: "分摊运费"
+        case .outstanding: "催收"
         case .unpriced: "定标价"
         case .negativeMargin: "调价"
+        case .currencyRisk: "调价或换汇"
         case .weakBattery: "议价或备注"
         case .aged: "促销或调价"
         }
@@ -55,13 +61,19 @@ struct TodoEntry: Identifiable {
     let amount: Decimal
     let item: Item?
     let batch: Batch?
+    let order: Order?
 }
 
 /// 待办清单的生成逻辑。纯函数，不碰界面状态，可被 verify.sh 直接断言。
 ///
 /// 只收在库机器：已售的机器再怎么提醒也没法动手，那是售后的事。
 enum TodoCenter {
-    static func build(items: [Item], batches: [Batch] = []) -> [TodoEntry] {
+    static func build(
+        items: [Item],
+        batches: [Batch] = [],
+        orders: [Order] = [],
+        currentRate: Decimal = 0
+    ) -> [TodoEntry] {
         var entries: [TodoEntry] = []
         let inStock = items.filter { $0.status == .inStock }
 
@@ -77,7 +89,8 @@ enum TodoCenter {
                     reason: reason,
                     amount: amount,
                     item: item,
-                    batch: nil
+                    batch: nil,
+                    order: nil
                 ))
             }
 
@@ -88,6 +101,15 @@ enum TodoCenter {
                 add(.negativeMargin,
                     "标价比总进价低 \(Money.kyat(item.landedCost - item.listPrice))",
                     item.landedCost - item.listPrice)
+            }
+
+            // 汇率亏损：按今天的汇率结汇，人民币口径是亏的
+            if currentRate > 0, item.currencyLoss(at: currentRate) > 0 {
+                let loss = item.currencyLoss(at: currentRate)
+                let breakEven = item.breakEvenRate.map { Money.text($0) } ?? "—"
+                add(.currencyRisk,
+                    "回本汇率 \(breakEven)，今天 \(Money.text(currentRate))，结汇亏 ¥\(Money.text(loss))",
+                    loss * currentRate)
             }
 
             if item.isBatteryWeak {
@@ -109,7 +131,25 @@ enum TodoCenter {
                 reason: "\(Money.kyat(unallocated)) 运费还没摊到机器上",
                 amount: unallocated,
                 item: nil,
-                batch: batch
+                batch: batch,
+                order: nil
+            ))
+        }
+
+        // 钱没收回来和成本算错一样，都属于「账不对」，排在定价问题前面
+        for order in orders where order.isOutstanding {
+            entries.append(TodoEntry(
+                id: TodoEntry.Key(kind: .outstanding, target: order.persistentModelID),
+                kind: .outstanding,
+                title: order.customerName.isEmpty ? order.number : order.customerName,
+                subtitle: order.number,
+                // 这一列宽度有限，"里还有…未收"会被截掉尾巴；
+                // 欠多少已经在金额列，这里改成报「应收多少、已收多少」不重复也不截断
+                reason: "应收 \(order.total.mmk)，已收 \(order.collected.mmk)",
+                amount: order.outstanding,
+                item: nil,
+                batch: nil,
+                order: order
             ))
         }
 

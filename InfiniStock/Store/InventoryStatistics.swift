@@ -38,6 +38,9 @@ struct InventoryStatistics {
     let lowMarginItems: [Item]
     /// 在库且电池偏弱（健康 < 80% 或循环 ≥ 800）
     let weakBatteryItems: [Item]
+    /// 有效单据里还没收回来的钱
+    let outstandingAmount: Decimal
+    let outstandingOrderCount: Int
 
     var overdueValue: Decimal {
         overdueItems.reduce(Decimal(0)) { $0 + $1.landedCost }
@@ -154,6 +157,11 @@ struct InventoryStatistics {
         weakBatteryItems = inStock
             .filter(\.isBatteryWeak)
             .sorted { $0.batteryHealth < $1.batteryHealth }
+
+        // 应收未收：只算有效单据，作废单的欠款没有意义
+        let owing = validOrders.filter(\.isOutstanding)
+        outstandingAmount = owing.reduce(Decimal(0)) { $0 + $1.outstanding }
+        outstandingOrderCount = owing.count
 
         // 低于成本：在库且标价低于总进价
         lowMarginItems = inStock

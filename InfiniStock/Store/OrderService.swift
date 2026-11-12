@@ -72,6 +72,23 @@ enum OrderService {
         return refund.rounded(2)
     }
 
+    /// 登记一笔收款。只补「已收」，不改成交金额与毛利——
+    /// 钱晚到不等于这笔生意变了，改总额会让历史报表失真。
+    @discardableResult
+    static func collect(_ amount: Decimal, for order: Order, in context: ModelContext) throws -> Decimal {
+        guard order.voidedAt == nil else { throw OrderError.alreadyVoided(order.number) }
+        guard amount > 0 else { throw OrderError.invalidPayment }
+
+        let due = order.outstanding
+        guard due > 0 else { throw OrderError.nothingToCollect(order.number) }
+        guard amount <= due else { throw OrderError.overCollected(due) }
+
+        order.paidAmount = (order.collected + amount).rounded(2)
+        order.paidAt = .now
+        try context.save()
+        return amount
+    }
+
     /// 机器退回库存并清空成交信息。
     /// 注意：soldAt 保留为退货时间，库龄从入库日重新开始算。
     private static func restore(_ item: Item) {

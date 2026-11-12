@@ -108,11 +108,14 @@ enum DebugSeed {
         }
 
         if let airM1 = pick("F2LX9K3QABCE"), let pro14 = pick("F2LX9K3QABCF") {
+            // 故意少收 92 万：用来验收「应收未收」的待办、客户欠款与收款登记
+            let payable = airM1.listPrice + pro14.listPrice - 30_000
             _ = try? InventoryService.sell(
                 lines: [.init(item: airM1, price: airM1.listPrice),
                         .init(item: pro14, price: pro14.listPrice)],
                 customerName: "陈先生", customerContact: "13600001111",
                 discount: 30_000, rounding: 0, paymentMethod: .transfer,
+                paid: payable - 920_000,
                 in: context
             )
         }

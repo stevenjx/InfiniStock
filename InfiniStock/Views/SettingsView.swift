@@ -17,11 +17,11 @@ struct SettingsView: View {
                 TextField("地址", text: $settings.address)
             }
 
-            Section("入库默认值") {
+            Section("当前汇率") {
                 HStack {
-                    Text("汇率")
+                    Text("1 元人民币 =")
                     Spacer()
-                    TextField("1 元 = ? 缅币", text: $rateText)
+                    TextField("460", text: $rateText)
                         .multilineTextAlignment(.trailing)
                         .decimalKeyboard()
                         .frame(width: 120)
@@ -29,7 +29,7 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(Token.Ink.tertiary)
                 }
-                Text("入库表单会自动填入这个汇率。汇率天天变，改一处比每台机器手输一遍可靠。")
+                Text("入库时自动填入这个汇率；机器详情里用它判断「按今天的汇率结汇是赚是亏」。汇率天天变，改一处比每台机器手输一遍可靠。")
                     .font(.caption)
                     .foregroundStyle(Token.Ink.secondary)
             }

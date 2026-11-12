@@ -5,9 +5,15 @@ import SwiftData
 struct TodosKpiStrip: View {
     @Query private var items: [Item]
     @Query private var batches: [Batch]
+    @Query private var orders: [Order]
 
     private var entries: [TodoEntry] {
-        TodoCenter.build(items: items, batches: batches)
+        TodoCenter.build(items: items, batches: batches, orders: orders,
+                                 currentRate: ShopSettings.load().defaultExchangeRate)
+    }
+
+    private var outstanding: Decimal {
+        orders.reduce(Decimal(0)) { $0 + $1.outstanding }
     }
 
     private var kindCount: Int {
@@ -42,12 +48,12 @@ struct TodosKpiStrip: View {
                 delta: "\(TodoCenter.involvedCount(entries)) 台机器"
             )
             StatCard(
-                title: "待分摊运费",
-                value: pendingShipping.mmk,
-                systemImage: "shippingbox.and.arrow.backward.fill",
-                tone: pendingBatchCount > 0 ? .danger : .ok,
-                delta: pendingBatchCount > 0 ? "\(pendingBatchCount) 个批次" : "没有待分摊批次",
-                deltaTone: pendingBatchCount > 0 ? .danger : .ok
+                title: "应收未收",
+                value: outstanding.mmk,
+                systemImage: "banknote.fill",
+                tone: outstanding > 0 ? .danger : .ok,
+                delta: outstanding > 0 ? "待收账款" : "全部收讫",
+                deltaTone: outstanding > 0 ? .danger : .ok
             )
         }
     }
@@ -62,17 +68,21 @@ struct TodosView: View {
     var onOpenItem: (Item) -> Void = { _ in }
     /// 跳到采购页并选中这个批次
     var onOpenBatch: (Batch) -> Void = { _ in }
+    /// 跳到销售页并选中这张单据
+    var onOpenOrder: (Order) -> Void = { _ in }
     /// 空状态里的「去入库」
     var onIntake: () -> Void = {}
 
     @Query private var items: [Item]
     @Query private var batches: [Batch]
+    @Query private var orders: [Order]
 
     @State private var searchText = ""
     @State private var kindFilter: TodoKind?
 
     private var allEntries: [TodoEntry] {
-        TodoCenter.build(items: items, batches: batches)
+        TodoCenter.build(items: items, batches: batches, orders: orders,
+                                 currentRate: ShopSettings.load().defaultExchangeRate)
     }
 
     private var rows: [TodoEntry] {
@@ -217,14 +227,18 @@ struct TodosView: View {
             onOpenItem(item)
         } else if let batch = entry.batch {
             onOpenBatch(batch)
+        } else if let order = entry.order {
+            onOpenOrder(order)
         }
     }
 
     private func tone(for kind: TodoKind) -> Tone {
         switch kind {
         case .pendingAllocation: .brand
+        case .outstanding: .warn
         case .unpriced: .warn
         case .negativeMargin: .danger
+        case .currencyRisk: .danger
         case .weakBattery: .warn
         case .aged: .neutral
         }

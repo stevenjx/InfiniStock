@@ -107,9 +107,16 @@ struct CustomersView: View {
             .width(min: 56, ideal: 62)
 
             TableColumn("累计消费") { customer in
-                Text(customer.revenue.mmk)
-                    .font(Token.Typography.money)
-                    .foregroundStyle(Token.Ink.primary)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(customer.revenue.mmk)
+                        .font(Token.Typography.money)
+                        .foregroundStyle(Token.Ink.primary)
+                    if customer.outstanding > 0 {
+                        Text("欠 \(customer.outstanding.mmk)")
+                            .font(Token.Typography.caption)
+                            .foregroundStyle(Token.Status.warn)
+                    }
+                }
             }
             .width(min: 88, ideal: 100)
 
@@ -201,6 +208,9 @@ struct CustomerDetailView: View {
 
                     PanelSection(title: "消费统计") {
                         KeyValueRow(label: "累计消费", value: customer.revenue.mmk)
+                        if customer.outstanding > 0 {
+                            KeyValueRow(label: "欠款", value: customer.outstanding.mmk, valueTone: .warn)
+                        }
                         KeyValueRow(
                             label: "累计毛利",
                             value: customer.profit.signedMMK,

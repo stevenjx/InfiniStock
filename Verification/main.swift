@@ -1204,6 +1204,188 @@ struct Verify {
         }
         check("零价成交不改变机器状态", zeroPriceItem.status == .inStock, zeroPriceItem.status.label)
 
+        // MARK: 赊账与收款
+
+        let creditItem = todoItem("T-CREDIT", price: 2000)
+        let creditOrder = try InventoryService.sell(
+            lines: [.init(item: creditItem, price: 2000)],
+            customerName: "吴先生", customerContact: "0955000111",
+            discount: 0, rounding: 0, paymentMethod: .cash,
+            paid: 1200, in: todoCtx
+        )
+        check("赊账-应收 2000", creditOrder.total == 2000, "\(creditOrder.total)")
+        check("赊账-已收 1200", creditOrder.collected == 1200, "\(creditOrder.collected)")
+        check("赊账-未收 800", creditOrder.outstanding == 800, "\(creditOrder.outstanding)")
+        check("赊账-毛利仍按应收算", creditOrder.profit == 1000, "\(creditOrder.profit)")
+        check("赊账-标记为欠款", creditOrder.isOutstanding)
+
+        try OrderService.collect(300, for: creditOrder, in: todoCtx)
+        check("收款-累加到 1500", creditOrder.collected == 1500, "\(creditOrder.collected)")
+        check("收款-剩余 500", creditOrder.outstanding == 500, "\(creditOrder.outstanding)")
+
+        do {
+            try OrderService.collect(600, for: creditOrder, in: todoCtx)
+            check("收款-超过未收被拒", false, "未抛错")
+        } catch {
+            check("收款-超过未收被拒", true)
+        }
+
+        try OrderService.collect(500, for: creditOrder, in: todoCtx)
+        check("收款-收讫后不再欠", !creditOrder.isOutstanding)
+        do {
+            try OrderService.collect(1, for: creditOrder, in: todoCtx)
+            check("收款-收讫后拒绝再收", false, "未抛错")
+        } catch {
+            check("收款-收讫后拒绝再收", true)
+        }
+
+        // 实收超过应收只记到应收为止：多给的是找零，不该进账
+        let overpaidItem = todoItem("T-OVERPAID", price: 1000)
+        let overpaidOrder = try InventoryService.sell(
+            lines: [.init(item: overpaidItem, price: 1000)],
+            customerName: "", customerContact: "",
+            discount: 0, rounding: 0, paymentMethod: .cash,
+            paid: 1500, in: todoCtx
+        )
+        check("赊账-多收只记应收", overpaidOrder.collected == 1000, "\(overpaidOrder.collected)")
+
+        // 老单据没有 paidAmount，必须视为已全额收讫，否则升级当天全变欠款
+        let legacyOrder = Order()
+        legacyOrder.number = "SO-LEGACY"
+        legacyOrder.total = 5000
+        // 模拟升级前的老单据：日期在很久以前，不落在报表的近 7 天窗口里
+        legacyOrder.createdAt = Calendar.current.date(byAdding: .day, value: -60, to: .now) ?? .now
+        todoCtx.insert(legacyOrder)
+        check("旧单据视为已付清", legacyOrder.collected == 5000 && legacyOrder.outstanding == 0,
+              "collected=\(legacyOrder.collected) outstanding=\(legacyOrder.outstanding)")
+
+        // 欠款进待办
+        let owingItem = todoItem("T-OWING", price: 3000)
+        let owingOrder = try InventoryService.sell(
+            lines: [.init(item: owingItem, price: 3000)],
+            customerName: "吴先生", customerContact: "0955000111",
+            discount: 0, rounding: 0, paymentMethod: .transfer,
+            paid: 1000, in: todoCtx
+        )
+        let todosWithOrders = TodoCenter.build(
+            items: try todoCtx.fetch(FetchDescriptor<Item>()),
+            batches: try todoCtx.fetch(FetchDescriptor<Batch>()),
+            orders: try todoCtx.fetch(FetchDescriptor<Order>())
+        )
+        check("待办-应收未收进清单",
+              todosWithOrders.contains { $0.kind == .outstanding && $0.amount == 2000 },
+              "\(todosWithOrders.filter { $0.kind == .outstanding }.map(\.amount))")
+        check("待办-已收讫的单不进清单",
+              !todosWithOrders.contains { $0.kind == .outstanding && $0.subtitle == creditOrder.number })
+
+        let creditStats = InventoryStatistics(
+            items: try todoCtx.fetch(FetchDescriptor<Item>()),
+            orders: try todoCtx.fetch(FetchDescriptor<Order>())
+        )
+        check("统计-应收未收合计 2000", creditStats.outstandingAmount == 2000,
+              "\(creditStats.outstandingAmount)")
+        check("统计-欠款单数 1", creditStats.outstandingOrderCount == 1,
+              "\(creditStats.outstandingOrderCount)")
+
+        // 备份要保住实收，否则恢复后欠款凭空消失
+        let creditSnapshot = try BackupService.makeSnapshot(from: todoCtx)
+        check("备份-格式版本 5", creditSnapshot.formatVersion == 5, "\(creditSnapshot.formatVersion)")
+        let creditDecoded = try BackupService.decode(try BackupService.jsonData(creditSnapshot))
+        let owingDTO = creditDecoded.orders.first { $0.number == owingOrder.number }
+        check("备份-保留实收", owingDTO?.paidAmount == "1000",
+              owingDTO?.paidAmount ?? "nil")
+
+        // MARK: 期间报表
+
+        // 作废单必须整张排除，否则"这个月赚多少"会被废单污染
+        let voidedForReport = try InventoryService.sell(
+            lines: [.init(item: todoItem("T-REPORTVOID", price: 5000), price: 5000)],
+            customerName: "作废测试", customerContact: "",
+            discount: 0, rounding: 0, paymentMethod: .cash, in: todoCtx
+        )
+        try OrderService.void(voidedForReport, in: todoCtx)
+
+        let cal = Calendar.current
+        let reportEnd = cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: .now)) ?? .now
+        let reportStart = cal.date(byAdding: .day, value: -6, to: cal.startOfDay(for: .now)) ?? .now
+        let period = PeriodReport(
+            orders: try todoCtx.fetch(FetchDescriptor<Order>()),
+            start: reportStart,
+            end: reportEnd
+        )
+
+        check("报表-只算有效单", period.orderCount == 3, "\(period.orderCount)")
+        check("报表-销售额 6000", period.revenue == 6000, "\(period.revenue)")
+        check("报表-实收 4000", period.collected == 4000, "\(period.collected)")
+        check("报表-未收 2000", period.outstanding == 2000, "\(period.outstanding)")
+        check("报表-毛利 3000", period.profit == 3000, "\(period.profit)")
+        check("报表-毛利率 50%", period.marginRate == 50, "\(String(describing: period.marginRate))")
+        check("报表-台数 3", period.machineCount == 3, "\(period.machineCount)")
+        check("报表-客单价 2000", period.averageOrder == 2000, "\(period.averageOrder)")
+        check("报表-同型号合并", period.byModel.count == 1 && period.byModel.first?.count == 3,
+              "\(period.byModel.map { "\($0.model)=\($0.count)" })")
+        check("报表-按毛利降序",
+              period.byModel.map(\.profit) == period.byModel.map(\.profit).sorted(by: >))
+        check("报表-每日补零", period.byDay.count == 7, "\(period.byDay.count)")
+
+        // 边界：左闭右开，月末最后一单不会被算进下个月
+        var marchComponents = DateComponents()
+        marchComponents.year = 2026
+        marchComponents.month = 3
+        marchComponents.day = 15
+        if let march = cal.date(from: marchComponents) {
+            let bounds = ReportRange.thisMonth.bounds(now: march, calendar: cal)
+            check("报表-本月起点是 3 月 1 日",
+                  cal.component(.day, from: bounds.start) == 1 && cal.component(.month, from: bounds.start) == 3,
+                  "\(bounds.start)")
+            check("报表-本月终点是 4 月 1 日",
+                  cal.component(.day, from: bounds.end) == 1 && cal.component(.month, from: bounds.end) == 4,
+                  "\(bounds.end)")
+
+            let lastMonth = ReportRange.lastMonth.bounds(now: march, calendar: cal)
+            check("报表-上月是 2 月",
+                  cal.component(.month, from: lastMonth.start) == 2,
+                  "\(lastMonth.start)")
+        }
+
+        // 报表 CSV 带 BOM，Excel 打开中文不乱码
+        let reportCSV = PeriodReport.csv(period, orders: try todoCtx.fetch(FetchDescriptor<Order>()))
+        check("报表-导出带 BOM", reportCSV.hasPrefix("\u{FEFF}"))
+        check("报表-导出含表头", reportCSV.contains("单号,日期,客户"))
+        check("报表-导出行数 = 台数", reportCSV.components(separatedBy: "\r\n").count == 4,
+              "\(reportCSV.components(separatedBy: "\r\n").count)")
+
+        // MARK: 回本汇率与汇率风险
+
+        // 进价 ¥3,600，运费 K 55,000，标价 K 2,250,000
+        // 回本汇率 = (2,250,000 − 55,000) / 3,600 = 609.7
+        let rateItem = Item(
+            serialNumber: "T-RATE", modelName: "MacBook Air M2",
+            costCNY: 3600, exchangeRate: 420, shipping: 55_000, listPrice: 2_250_000
+        )
+        todoCtx.insert(rateItem)
+
+        check("回本汇率 609.7", rateItem.breakEvenRate == Decimal(string: "609.7"),
+              "\(String(describing: rateItem.breakEvenRate))")
+        check("汇率 420 时不亏", rateItem.currencyLoss(at: 420) == 0,
+              "\(rateItem.currencyLoss(at: 420))")
+        check("汇率 650 时亏 ¥223.08", rateItem.currencyLoss(at: 650) == Decimal(string: "223.08"),
+              "\(rateItem.currencyLoss(at: 650))")
+
+        let riskTodos = TodoCenter.build(items: [rateItem], currentRate: 650)
+        check("汇率亏损进待办", riskTodos.contains { $0.kind == .currencyRisk })
+        check("汇率安全不进待办",
+              !TodoCenter.build(items: [rateItem], currentRate: 420).contains { $0.kind == .currencyRisk })
+        check("没设汇率不产生该待办",
+              !TodoCenter.build(items: [rateItem], currentRate: 0).contains { $0.kind == .currencyRisk })
+
+        // 没定价的机器谈不上结汇，不该有回本汇率
+        let unpricedRate = Item(
+            serialNumber: "T-RATE0", modelName: "MacBook Air M2",
+            costCNY: 3600, exchangeRate: 420, shipping: 0, listPrice: 0
+        )
+        check("未标价没有回本汇率", unpricedRate.breakEvenRate == nil)
+
         // MARK: 配置解码兼容
 
         // 旧版配置没有 defaultExchangeRate 字段。合成 Codable 会在这里抛 keyNotFound，

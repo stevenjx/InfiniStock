@@ -268,4 +268,11 @@ struct ItemDetailContent: View {
         guard base > 0 else { return "—" }
         return "\((profit / base * 100).rounded(1))%"
     }
+
+    /// 当前汇率高于回本汇率 = 按今天结汇是亏的
+    private func breakEvenTone(_ item: Item, _ breakEven: Decimal) -> Tone? {
+        let current = ShopSettings.load().defaultExchangeRate
+        guard current > 0 else { return nil }
+        return current > breakEven ? .danger : .ok
+    }
 }
