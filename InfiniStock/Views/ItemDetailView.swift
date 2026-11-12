@@ -7,6 +7,7 @@ struct ItemDetailView: View {
     @State private var showingSale = false
     @State private var showingReceipt = false
     @State private var showingVoidConfirm = false
+    @State private var showingDeleteConfirm = false
     @State private var errorMessage: String?
 
     var body: some View {
@@ -63,6 +64,16 @@ struct ItemDetailView: View {
             if item.status == .inStock {
                 ToolbarItem(placement: .primaryAction) {
                     Button("出库销售") { showingSale = true }
+                        .keyboardShortcut("s", modifiers: [.command, .shift])
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Menu {
+                        Button("删除这台（误录入）…", role: .destructive) {
+                            showingDeleteConfirm = true
+                        }
+                    } label: {
+                        Label("更多", systemImage: "ellipsis.circle")
+                    }
                 }
             }
             if item.order != nil {
@@ -85,6 +96,14 @@ struct ItemDetailView: View {
                 ReceiptSheet(order: order)
             }
         }
+        .confirmationDialog("删除这台机器？", isPresented: $showingDeleteConfirm, titleVisibility: .visible) {
+            Button("删除", role: .destructive) {
+                Task { await performDelete() }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("仅用于清理误录入。删除后不可恢复，且需要系统身份验证。已售出的机器请先退货或作废单据。")
+        }
         .confirmationDialog("撤销这张单据？", isPresented: $showingVoidConfirm, titleVisibility: .visible) {
             Button("撤销并退回库存", role: .destructive) {
                 Task { await performVoid() }
@@ -100,6 +119,19 @@ struct ItemDetailView: View {
             Button("好", role: .cancel) { errorMessage = nil }
         } message: {
             Text(errorMessage ?? "")
+        }
+    }
+
+    private func performDelete() async {
+        let passed = await BiometricGate.authenticate(reason: "删除机器 \(item.serialNumber)")
+        guard passed else {
+            errorMessage = "身份验证未通过，删除已取消"
+            return
+        }
+        do {
+            try InventoryService.delete(item, in: modelContext)
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 

@@ -7,6 +7,8 @@ struct InventoryTableView: View {
     let statusFilter: ItemStatus?
     @Binding var selection: Set<PersistentIdentifier>
     @Binding var searchPresented: Bool
+    /// Delete 键触发；由上层做身份验证与落库
+    var onDeleteRequest: ([Item]) -> Void = { _ in }
 
     @Query(sort: \Item.inboundAt, order: .reverse) private var items: [Item]
     @State private var sortOrder: [KeyPathComparator<Item>] = [KeyPathComparator(\Item.inboundAt, order: .reverse)]
@@ -58,6 +60,11 @@ struct InventoryTableView: View {
             }
         }
         .searchable(text: $searchText, isPresented: $searchPresented, prompt: "序列号 / 型号")
+        .onDeleteCommand {
+            let chosen = rows.filter { selection.contains($0.id) }
+            guard !chosen.isEmpty else { return }
+            onDeleteRequest(chosen)
+        }
         .contextMenu(forSelectionType: Item.self) { selected in
             if !selected.isEmpty {
                 Button("选择并出库") { selection = Set(selected.map(\.id)) }

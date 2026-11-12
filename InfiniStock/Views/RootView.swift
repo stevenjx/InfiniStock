@@ -43,6 +43,8 @@ struct RootView: View {
     @State private var showingSale = false
     @State private var showingInspector = false
     @State private var selectedOrderID: PersistentIdentifier?
+    @State private var pendingDelete: [Item] = []
+    @State private var deleteError: String?
 
     @Query private var allItems: [Item]
     @Query private var allOrders: [Order]
@@ -72,7 +74,8 @@ struct RootView: View {
                 InventoryTableView(
                     statusFilter: activeFilter.status,
                     selection: $selection,
-                    searchPresented: $appState.showingSearch
+                    searchPresented: $appState.showingSearch,
+                    onDeleteRequest: { items in pendingDelete = items }
                 )
                 .navigationSplitViewColumnWidth(min: 460, ideal: 700)
                 .navigationTitle(activeFilter.label)
@@ -140,6 +143,31 @@ struct RootView: View {
         .onChange(of: showingSale) { _, isPresented in
             if !isPresented { selection.removeAll() }
         }
+        .confirmationDialog(
+            pendingDelete.count == 1
+                ? "删除 1 台机器？"
+                : "删除 \(pendingDelete.count) 台机器？",
+            isPresented: Binding(
+                get: { !pendingDelete.isEmpty },
+                set: { if !$0 { pendingDelete = [] } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("删除", role: .destructive) {
+                Task { await performBatchDelete() }
+            }
+            Button("取消", role: .cancel) { pendingDelete = [] }
+        } message: {
+            Text("仅用于清理误录入。删除后不可恢复，且需要系统身份验证。已售出的机器请先退货或作废单据。")
+        }
+        .alert("删除失败", isPresented: Binding(
+            get: { deleteError != nil },
+            set: { if !$0 { deleteError = nil } }
+        )) {
+            Button("好", role: .cancel) { deleteError = nil }
+        } message: {
+            Text(deleteError ?? "")
+        }
         .task {
             #if DEBUG
             DebugSeed.seedIfRequested(modelContext)
@@ -159,6 +187,30 @@ struct RootView: View {
 
     private var canSell: Bool {
         !selection.isEmpty && selectedItems.allSatisfy { $0.status == .inStock }
+    }
+
+    private func performBatchDelete() async {
+        let targets = pendingDelete
+        pendingDelete = []
+
+        let passed = await BiometricGate.authenticate(reason: "删除 \(targets.count) 台机器")
+        guard passed else {
+            deleteError = "身份验证未通过，删除已取消"
+            return
+        }
+
+        var failures: [String] = []
+        for item in targets {
+            do {
+                try InventoryService.delete(item, in: modelContext)
+            } catch {
+                failures.append(item.serialNumber)
+            }
+        }
+        selection.subtract(Set(targets.map(\.id)))
+        if !failures.isEmpty {
+            deleteError = "以下机器未删除：\(failures.joined(separator: "、"))"
+        }
     }
 
     private var showingOrders: Bool { filter == nil }

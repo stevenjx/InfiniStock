@@ -10,6 +10,7 @@ enum InventoryError: LocalizedError {
     case invalidAmount(String)
     case invalidDiscount
     case discountTooLarge(Decimal)
+    case cannotDelete(String, String)
 
     var errorDescription: String? {
         switch self {
@@ -21,6 +22,7 @@ enum InventoryError: LocalizedError {
         case .invalidAmount(let field): "\(field) 不是有效数字"
         case .invalidDiscount: "折扣与抹零不能为负数"
         case .discountTooLarge(let subtotal): "折扣加抹零超过商品小计 \(subtotal.cny)"
+        case .cannotDelete(let serial, let reason): "序列号 \(serial) 无法删除：\(reason)"
         }
     }
 }
@@ -182,6 +184,19 @@ enum InventoryService {
         try context.save()
         lines.forEach { SpotlightIndexer.index($0.item) }
         return order
+    }
+
+    /// 删除误录入的机器。只允许删在库且无单据关联的整机，
+    /// 已售出的必须先退货或作废单据，否则会留下"有单无机"的坏数据。
+    static func delete(_ item: Item, in context: ModelContext) throws {
+        guard item.status == .inStock else { throw InventoryError.cannotDelete(item.serialNumber, item.status.label) }
+        guard item.order == nil else { throw InventoryError.cannotDelete(item.serialNumber, "仍挂在单据上") }
+
+        let serial = item.serialNumber
+        SpotlightIndexer.remove(serial: serial)
+        item.batch?.items?.removeAll { $0.serialNumber == serial }
+        context.delete(item)
+        try context.save()
     }
 
     private static func amount(_ text: String, field: String, fallback: Decimal) throws -> Decimal {

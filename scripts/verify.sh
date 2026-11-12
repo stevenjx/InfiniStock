@@ -13,6 +13,7 @@ swiftc -disable-sandbox -parse-as-library -O \
 	InfiniStock/Model/*.swift \
 	InfiniStock/Store/*.swift \
 	InfiniStock/Receipt/*.swift \
+	InfiniStock/Security/BiometricGate.swift \
 	InfiniStock/Search/SpotlightIndexer.swift \
 	InfiniStock/Backup/BackupSnapshot.swift \
 	InfiniStock/Backup/BackupService.swift \

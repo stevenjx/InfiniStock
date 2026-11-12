@@ -35,6 +35,9 @@ struct ReceiptSheet: View {
                         Label("在预览中打开", systemImage: "eye")
                     }
                 }
+                Button("打印…") { printReceipt() }
+                    .keyboardShortcut("p")
+                    .disabled(pdfData == nil)
                 Button("保存 PDF…") { save() }
                     .keyboardShortcut("s")
                     .disabled(pdfData == nil)
@@ -61,6 +64,15 @@ struct ReceiptSheet: View {
             Button("好", role: .cancel) { errorMessage = nil }
         } message: {
             Text(errorMessage ?? "")
+        }
+    }
+
+    private func printReceipt() {
+        guard let pdfData else { return }
+        do {
+            try ReceiptPrinter.print(pdfData: pdfData)
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 

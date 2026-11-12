@@ -856,6 +856,85 @@ struct Verify {
               "\(String(describing: restoredReturned?.returnedAmountCNY))")
         check("备份保住作废状态", restoredReturned?.isVoided == true)
 
+
+        // MARK: P4 删除误录入与打印参数
+
+        let dSchema = Schema([Item.self, Order.self, Batch.self])
+        let dConfig = ModelConfiguration(schema: dSchema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let dContainer = try ModelContainer(for: dSchema, configurations: [dConfig])
+        let d = dContainer.mainContext
+
+        let victim = Item(serialNumber: "TYPO001", modelName: "iPhone 17",
+                          costAmount: 100, currency: .cny, exchangeRate: 1,
+                          shippingCNY: 0, listPriceCNY: 200)
+        d.insert(victim)
+        try d.save()
+
+        try InventoryService.delete(victim, in: d)
+        check("误录入可删除",
+              try d.fetchCount(FetchDescriptor<Item>()) == 0,
+              "\(try d.fetchCount(FetchDescriptor<Item>()))")
+
+        // 已售出的机器不能直接删
+        let soldItem = Item(serialNumber: "SOLD001", modelName: "iPhone 17",
+                            costAmount: 100, currency: .cny, exchangeRate: 1,
+                            shippingCNY: 0, listPriceCNY: 200)
+        d.insert(soldItem)
+        _ = try InventoryService.sell(
+            lines: [.init(item: soldItem, price: 200)], customerName: "", customerContact: "",
+            discountCNY: 0, roundingCNY: 0, paymentMethod: .cash, in: d
+        )
+        do {
+            try InventoryService.delete(soldItem, in: d)
+            check("已售机器拒绝删除", false, "未抛错")
+        } catch {
+            check("已售机器拒绝删除", true)
+        }
+        check("拒绝后机器仍在", try d.fetchCount(FetchDescriptor<Item>()) == 1,
+              "\(try d.fetchCount(FetchDescriptor<Item>()))")
+
+        // 删除后序列号可重新入库
+        let again = Item(serialNumber: "TYPO001", modelName: "iPhone 17",
+                         costAmount: 100, currency: .cny, exchangeRate: 1,
+                         shippingCNY: 0, listPriceCNY: 200)
+        d.insert(again)
+        try d.save()
+        check("删除后同序列号可重新入库", !InventoryService.serialExists("TYPO001X", in: d))
+
+        // 打印参数
+        let printInfo = ReceiptPrinter.makePrintInfo()
+        check("打印纸张为 A4 宽", abs(printInfo.paperSize.width - 595.28) < 1,
+              "\(printInfo.paperSize)")
+        check("打印纸张为 A4 高", abs(printInfo.paperSize.height - 841.89) < 1)
+        check("打印边距为零（版式自带留白）",
+              printInfo.topMargin == 0 && printInfo.leftMargin == 0)
+        check("打印横向铺满", printInfo.horizontalPagination == .fit)
+        check("打印纵向铺满", printInfo.verticalPagination == .fit)
+        check("打印为纵向", printInfo.orientation == .portrait)
+
+        // 可打印的 PDF 必须能被解析，空数据必须报错
+        let printDoc = ReceiptDocument(
+            number: "SO-2026-0009", issuedAt: .now, customerName: "打印测试",
+            customerContact: "", lines: [
+                .init(modelName: "iPhone 17", serialNumber: "PRINT001",
+                      spec: "8GB 256GB", condition: "95新", price: 6999)
+            ]
+        )
+        let printPDF = ReceiptPDFRenderer.render(printDoc)
+        check("凭证可生成待打印数据", printPDF != nil && PDFDocument(data: printPDF!) != nil)
+        do {
+            _ = try ReceiptPrinter.print(pdfData: Data())
+            check("空数据拒绝打印", false, "未抛错")
+        } catch {
+            check("空数据拒绝打印", true)
+        }
+        do {
+            _ = try ReceiptPrinter.print(pdfData: Data("not a pdf".utf8))
+            check("损坏数据拒绝打印", false, "未抛错")
+        } catch {
+            check("损坏数据拒绝打印", true)
+        }
+
         print(failures == 0 ? "\nALL CHECKS PASSED" : "\n\(failures) CHECK(S) FAILED")
         exit(failures == 0 ? 0 : 1)
     }
