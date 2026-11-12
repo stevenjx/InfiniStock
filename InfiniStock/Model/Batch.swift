@@ -35,9 +35,4 @@ final class Batch {
     }
 
     var itemList: [Item] { items ?? [] }
-
-    /// 批次内所有机器的落地成本合计（含运费）
-    var totalLandedCostCNY: Decimal {
-        itemList.reduce(Decimal(0)) { $0 + $1.landedCostCNY }
-    }
 }

@@ -23,7 +23,7 @@ enum CSVImporter {
     }
 
     struct Issue: Identifiable {
-        let id = UUID()
+        var id: String { "\(line)-\(field)" }
         let line: Int
         let field: String
         let reason: String
@@ -33,7 +33,6 @@ enum CSVImporter {
         var rows: [RowPlan]
         var issues: [Issue]
         var totalLines: Int
-        var isEmpty: Bool { rows.isEmpty && issues.isEmpty }
     }
 
     // 表头别名：中文表头与导出文件一致，同时容忍常见英文写法

@@ -112,14 +112,12 @@ struct Verify {
         countBatch.allocation = .byCount
         context.insert(countBatch)
 
-        var countDrafts: [IntakeDraft] = []
         for index in 1...3 {
             var d = IntakeDraft()
             d.serialNumber = "CNT00\(index)"
             d.modelName = "iPhone 17"
             d.costAmount = "100"
             d.exchangeRate = "7.1"
-            countDrafts.append(d)
             _ = try InventoryService.intake(d, batch: countBatch, in: context)
         }
 

@@ -194,7 +194,8 @@ enum InventoryService {
 
         let serial = item.serialNumber
         SpotlightIndexer.remove(serial: serial)
-        item.batch?.items?.removeAll { $0.serialNumber == serial }
+        // SwiftData 会在 delete 时按 inverse 自动摘除关系，直接改数组反而可能触发
+        // 重复 insert/delete；批次若只剩它自己，分摊也无意义，交给 next reallocate 处理
         context.delete(item)
         try context.save()
     }

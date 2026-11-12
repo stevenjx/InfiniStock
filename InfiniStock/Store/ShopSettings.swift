@@ -23,10 +23,6 @@ struct ShopSettings: Codable, Equatable {
         guard let data = try? JSONEncoder().encode(self) else { return }
         UserDefaults.standard.set(data, forKey: Self.key)
     }
-
-    var isEmpty: Bool {
-        shopName.trimmingCharacters(in: .whitespaces).isEmpty
-    }
 }
 
 enum PaymentMethod: String, Codable, CaseIterable, Identifiable {

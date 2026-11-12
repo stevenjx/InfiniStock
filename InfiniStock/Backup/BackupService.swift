@@ -271,7 +271,6 @@ enum BackupService {
 
     private static let bookmarkKey = "infinistock.backupFolderBookmark"
     private static let lastBackupKey = "infinistock.lastBackupAt"
-    private static let lastBackupNameKey = "infinistock.lastBackupName"
 
     static func rememberFolder(_ url: URL) {
         let scoped = url.startAccessingSecurityScopedResource()
@@ -301,10 +300,6 @@ enum BackupService {
         UserDefaults.standard.object(forKey: lastBackupKey) as? Date
     }
 
-    static var lastBackupName: String? {
-        UserDefaults.standard.string(forKey: lastBackupNameKey)
-    }
-
     // MARK: - 写备份
 
     @discardableResult
@@ -318,7 +313,6 @@ enum BackupService {
         try data.write(to: url, options: .atomic)
 
         UserDefaults.standard.set(now, forKey: lastBackupKey)
-        UserDefaults.standard.set(url.lastPathComponent, forKey: lastBackupNameKey)
 
         prune(in: folder)
         return url

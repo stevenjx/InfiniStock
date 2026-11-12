@@ -4,10 +4,6 @@ import LocalAuthentication
 /// 敏感操作的门禁。用 deviceOwnerAuthentication，没有 Touch ID 的机器自动退化为系统密码。
 enum BiometricGate {
 
-    static var isAvailable: Bool {
-        LAContext().canEvaluatePolicy(.deviceOwnerAuthentication, error: nil)
-    }
-
     static func authenticate(reason: String) async -> Bool {
         let context = LAContext()
         context.localizedCancelTitle = "取消"
