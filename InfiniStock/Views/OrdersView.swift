@@ -60,6 +60,8 @@ struct OrdersKpiStrip: View {
 struct OrdersView: View {
     @Binding var selection: PersistentIdentifier?
     @Binding var searchPresented: Bool
+    /// 空状态里的「去库存开单」
+    var onOpenStock: () -> Void = {}
 
     @Query(sort: \Order.createdAt, order: .reverse) private var orders: [Order]
 
@@ -106,7 +108,7 @@ struct OrdersView: View {
                         subtitle: (order.customerName.isEmpty ? "散客" : order.customerName)
                             + " · \(order.itemList.count) 台"
                     )
-                    .padding(.vertical, 6)
+                    .padding(.vertical, 8)
                 }
                 .width(min: 130, ideal: 160)
 
@@ -121,6 +123,7 @@ struct OrdersView: View {
                     Text(order.total.mmk)
                         .font(Token.Typography.money)
                         .foregroundStyle(Token.Ink.primary)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
                 .width(min: 82, ideal: 92)
 
@@ -128,6 +131,7 @@ struct OrdersView: View {
                     Text(order.profit.signedMMK)
                         .font(Token.Typography.money)
                         .foregroundStyle(order.profit < 0 ? Token.Status.danger : Token.Status.ok)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
                 .width(min: 76, ideal: 86)
 
@@ -145,10 +149,11 @@ struct OrdersView: View {
                 if filtered.isEmpty {
                     EmptyState(
                         title: searchText.isEmpty ? "还没有单据" : "没有匹配结果",
-                        message: searchText.isEmpty ? "出库销售后自动生成单据" : "换个单号或客户名试试",
-                        systemImage: "doc.text"
+                        message: searchText.isEmpty ? "在库存页选中机器点「出库销售」，单据自动生成" : "换个单号或客户名试试",
+                        systemImage: "doc.text",
+                        actionTitle: searchText.isEmpty ? "去库存开单" : nil,
+                        action: searchText.isEmpty ? onOpenStock : nil
                     )
-                    .allowsHitTesting(false)
                 }
             }
 

@@ -8,6 +8,13 @@ enum AllocationMethod: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+/// 批次推进到哪一步。判定只看数据，不存状态字段，避免和实际分摊结果打架。
+enum BatchStage: String {
+    case empty = "待入库"
+    case pending = "待分摊"
+    case settled = "已入库"
+}
+
 /// 一批进货。汇率与缅币运费在批次上锁定，逐台成本由分摊算出。
 @Model
 final class Batch {
@@ -35,5 +42,19 @@ final class Batch {
     /// 本批缅币总进价
     var totalCost: Decimal {
         itemList.reduce(Decimal(0)) { $0 + $1.landedCost }
+    }
+
+    /// 已分摊到各台的运费合计
+    var allocatedShipping: Decimal {
+        itemList.reduce(Decimal(0)) { $0 + $1.shipping }
+    }
+
+    var stage: BatchStage {
+        if itemList.isEmpty { return .empty }
+        // 分摊算法保证尾差归最后一台，所以这里的差额只可能是"还没分摊"
+        if (totalShipping - allocatedShipping).magnitude > Decimal(string: "0.01")! {
+            return .pending
+        }
+        return .settled
     }
 }

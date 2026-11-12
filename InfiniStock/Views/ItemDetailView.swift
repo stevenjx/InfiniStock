@@ -8,13 +8,14 @@ struct ItemDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var showingSale = false
     @State private var showingReceipt = false
+    @State private var showingEdit = false
     @State private var showingVoidConfirm = false
     @State private var showingDeleteConfirm = false
     @State private var errorMessage: String?
 
     var body: some View {
         VStack(spacing: 0) {
-            PanelHeader(title: "详情") {
+            PanelHeader(title: "详情", subtitle: item.status.label) {
                 Badge(
                     text: item.status.label,
                     tone: item.status.tone,
@@ -24,19 +25,24 @@ struct ItemDetailView: View {
 
             ScrollView {
                 ItemDetailContent(item: item)
-                    .padding(Token.Space.m)
             }
 
             PanelFooter {
+                Button("改标价") { showingEdit = true }
+                    .buttonStyle(.borderedProminent)
+                    .help("改标价与机况")
+
                 if item.status == .inStock {
                     Button("出库销售") { showingSale = true }
-                        .buttonStyle(.borderedProminent)
+                        .help("出库销售（⌘⇧S）")
                 }
                 if item.order != nil {
                     Button("销售凭证") { showingReceipt = true }
                 }
                 Spacer(minLength: 0)
                 Menu {
+                    Button("编辑机况与标价…") { showingEdit = true }
+                    Divider()
                     if item.status == .inStock {
                         Button("删除这台（误录入）…", role: .destructive) {
                             showingDeleteConfirm = true
@@ -57,6 +63,9 @@ struct ItemDetailView: View {
         .navigationTitle("")
         .sheet(isPresented: $showingSale) {
             SaleSheet(items: [item])
+        }
+        .sheet(isPresented: $showingEdit) {
+            ItemEditSheet(item: item)
         }
         .sheet(isPresented: $showingReceipt) {
             if let order = item.order {
@@ -118,12 +127,14 @@ struct ItemDetailView: View {
 }
 
 /// 详情页内容（不含滚动与工具栏），可直接渲染成图验收。
+/// 结构对齐参考图：整幅照片 → 大号型号名 → 分区字段，一眼先看到"这是什么机器"。
 struct ItemDetailContent: View {
     let item: Item
 
     var body: some View {
         VStack(spacing: 0) {
-            header
+            photo
+            identity
 
             PanelSection(title: "机器") {
                 KeyValueRow(label: "芯片", value: item.chip)
@@ -131,6 +142,12 @@ struct ItemDetailContent: View {
                 KeyValueRow(label: "存储", value: item.storage)
                 KeyValueRow(label: "颜色", value: item.color)
                 KeyValueRow(label: "成色", value: item.condition.rawValue)
+                KeyValueRow(
+                    label: "电池健康",
+                    value: item.batteryHealth > 0 ? item.batteryHealthText : "未检测",
+                    valueTone: item.isBatteryWeak ? .warn : nil
+                )
+                KeyValueRow(label: "循环次数", value: item.batteryCycles > 0 ? item.batteryCyclesText : "未检测")
                 KeyValueRow(label: "入库时间", value: item.inboundAt.compactStamp)
             }
 
@@ -161,6 +178,7 @@ struct ItemDetailContent: View {
                         value: expected.signedMMK,
                         valueTone: expected < 0 ? .danger : .ok
                     )
+                    KeyValueRow(label: "毛利率", value: marginText(expected, base: item.listPrice))
                 }
             }
 
@@ -186,57 +204,68 @@ struct ItemDetailContent: View {
         }
     }
 
-    private var header: some View {
-        HStack(alignment: .top, spacing: Token.Space.m) {
-            thumbnail
-            VStack(alignment: .leading, spacing: 6) {
-                Text(item.modelName.isEmpty ? "未命名型号" : item.modelName)
-                    .font(Token.Typography.pageTitle)
-                    .foregroundStyle(Token.Ink.primary)
-                    .lineLimit(2)
-                Text(item.serialNumber)
-                    .font(.system(size: 12).monospaced())
-                    .foregroundStyle(Token.Ink.secondary)
-                HStack(spacing: 6) {
-                    Badge(
-                        text: item.status.label,
-                        tone: item.status.tone,
-                        style: item.status == .inStock ? .outline : .filled
-                    )
-                    if item.isOverdue {
-                        Badge(text: "库龄 \(item.ageInDays) 天", tone: .danger, style: .filled)
-                    }
-                }
-                if !item.specSummary.isEmpty {
-                    Text(item.specSummary)
-                        .font(Token.Typography.caption)
+    /// 整幅照片位。用 Rectangle 打底，保证无论有没有照片都铺满面板宽度。
+    private var photo: some View {
+        Rectangle()
+            .fill(Token.Surface.field)
+            .frame(height: 148)
+            .overlay {
+                if let data = item.photoData, let image = NSImage(data: data) {
+                    Image(nsImage: image)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    Image(systemName: "laptopcomputer")
+                        .font(.system(size: 44, weight: .ultraLight))
                         .foregroundStyle(Token.Ink.tertiary)
                 }
             }
-            Spacer(minLength: 0)
+            .clipped()
+            .overlay(alignment: .bottom) { Hairline() }
+            .accessibilityLabel(Text(item.photoData == nil ? "暂无实物照片" : "实物照片"))
+    }
+
+    private var identity: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(item.modelName.isEmpty ? "未命名型号" : item.modelName)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(Token.Ink.primary)
+                .lineLimit(2)
+                .textSelection(.enabled)
+
+            Text(item.serialNumber)
+                .font(.system(size: 12).monospaced())
+                .foregroundStyle(Token.Ink.secondary)
+                .textSelection(.enabled)
+
+            HStack(spacing: 6) {
+                Badge(
+                    text: item.status.label,
+                    tone: item.status.tone,
+                    style: item.status == .inStock ? .outline : .filled
+                )
+                if item.isBatteryWeak {
+                    Badge(text: "电池偏弱", tone: .warn, style: .filled)
+                }
+                if item.isOverdue {
+                    Badge(text: "库龄 \(item.ageInDays) 天", tone: .danger, style: .filled)
+                }
+            }
+
+            if !item.specSummary.isEmpty {
+                Text(item.specSummary)
+                    .font(Token.Typography.caption)
+                    .foregroundStyle(Token.Ink.tertiary)
+            }
         }
-        .padding(Token.Space.m)
+        .padding(.horizontal, Token.Space.m)
+        .padding(.vertical, Token.Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
         .overlay(alignment: .bottom) { Hairline() }
     }
 
-    @ViewBuilder
-    private var thumbnail: some View {
-        if let data = item.photoData, let image = NSImage(data: data) {
-            Image(nsImage: image)
-                .resizable()
-                .scaledToFill()
-                .frame(width: 84, height: 84)
-                .clipShape(.rect(cornerRadius: Token.Radius.control))
-        } else {
-            RoundedRectangle(cornerRadius: Token.Radius.control)
-                .fill(Token.Surface.sidebar)
-                .frame(width: 84, height: 84)
-                .overlay {
-                    Image(systemName: "iphone.gen3")
-                        .font(.system(size: 26, weight: .light))
-                        .foregroundStyle(Token.Ink.tertiary)
-                }
-        }
+    private func marginText(_ profit: Decimal, base: Decimal) -> String {
+        guard base > 0 else { return "—" }
+        return "\((profit / base * 100).rounded(1))%"
     }
 }

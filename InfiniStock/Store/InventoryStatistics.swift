@@ -36,6 +36,8 @@ struct InventoryStatistics {
     let dailyPoints: [DailyPoint]
     let paymentSlices: [PaymentSlice]
     let lowMarginItems: [Item]
+    /// 在库且电池偏弱（健康 < 80% 或循环 ≥ 800）
+    let weakBatteryItems: [Item]
 
     var overdueValue: Decimal {
         overdueItems.reduce(Decimal(0)) { $0 + $1.landedCost }
@@ -49,6 +51,15 @@ struct InventoryStatistics {
     var todayMarginRate: Decimal? {
         guard todayRevenue > 0 else { return nil }
         return (todayProfit / todayRevenue * 100).rounded(1)
+    }
+
+    /// 昨日销售额，用于 KPI 卡片的环比
+    var yesterdayRevenue: Decimal {
+        dailyPoints.count >= 2 ? dailyPoints[dailyPoints.count - 2].revenue : 0
+    }
+
+    var yesterdayProfit: Decimal {
+        dailyPoints.count >= 2 ? dailyPoints[dailyPoints.count - 2].profit : 0
     }
 
     /// 近 N 天合计，用于图表下方摘要
@@ -139,7 +150,12 @@ struct InventoryStatistics {
             )
         }
 
-        // 低于成本：在库且标价低于落地成本
+        // 电池偏弱：在库且健康度低于阈值或循环次数偏高
+        weakBatteryItems = inStock
+            .filter(\.isBatteryWeak)
+            .sorted { $0.batteryHealth < $1.batteryHealth }
+
+        // 低于成本：在库且标价低于总进价
         lowMarginItems = inStock
             .filter { $0.listPrice > 0 && $0.listPrice < $0.landedCost }
             .sorted { ($0.listPrice - $0.landedCost) < ($1.listPrice - $1.landedCost) }

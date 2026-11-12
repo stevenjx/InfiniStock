@@ -38,6 +38,9 @@ struct BackupSnapshot: Codable {
         var landedCost: String
         var listPrice: String
         var soldPrice: String
+        /// 电池健康与循环次数为格式版本 4 的可选补充字段，缺省按未检测处理
+        var batteryHealth: Int?
+        var batteryCycles: Int?
         var inboundAt: Date
         var soldAt: Date?
         var orderNumber: String?

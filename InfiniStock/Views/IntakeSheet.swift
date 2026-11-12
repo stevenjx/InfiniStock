@@ -43,6 +43,12 @@ struct IntakeSheet: View {
                             Text(condition.rawValue).tag(condition)
                         }
                     }
+                    HStack(spacing: Token.Space.m) {
+                        TextField("电池健康 %（可选）", text: $draft.batteryHealth)
+                            .decimalKeyboard()
+                        TextField("循环次数（可选）", text: $draft.batteryCycles)
+                            .decimalKeyboard()
+                    }
                 }
 
                 Section("批次") {

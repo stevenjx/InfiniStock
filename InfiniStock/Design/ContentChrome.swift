@@ -10,7 +10,7 @@ struct FilterBar<Content: View>: View {
             content
         }
         .padding(.horizontal, Token.Space.m)
-        .frame(height: 42)
+        .frame(height: 44)
         .background(Token.Surface.header)
         .overlay(alignment: .bottom) { Hairline() }
     }
@@ -34,7 +34,7 @@ struct TableFooter: View {
         }
         .font(Token.Typography.caption)
         .padding(.horizontal, Token.Space.m)
-        .frame(height: 30)
+        .frame(height: 32)
         .background(Token.Surface.header)
         .overlay(alignment: .top) { Hairline() }
     }

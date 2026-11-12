@@ -51,6 +51,8 @@ enum BackupService {
                 landedCost: item.landedCost.plainString,
                 listPrice: item.listPrice.plainString,
                 soldPrice: item.soldPrice.plainString,
+                batteryHealth: item.batteryHealth,
+                batteryCycles: item.batteryCycles,
                 inboundAt: item.inboundAt,
                 soldAt: item.soldAt,
                 orderNumber: item.order?.number,
@@ -136,6 +138,7 @@ enum BackupService {
 
         let header = [
             "序列号", "型号", "芯片", "内存", "存储", "颜色", "成色", "状态",
+            "电池健康", "循环次数",
             "进价(人民币)", "汇率", "运费(缅币)", "总进价(缅币)", "标价(缅币)",
             "成交价", "毛利", "入库日期", "售出日期", "单号", "客户", "批次",
         ].joined(separator: ",")
@@ -154,6 +157,8 @@ enum BackupService {
                 item.color,
                 item.condition.rawValue,
                 item.status.label,
+                item.batteryHealth > 0 ? String(item.batteryHealth) : "",
+                item.batteryCycles > 0 ? String(item.batteryCycles) : "",
                 item.costCNY.plainString,
                 item.exchangeRate.plainString,
                 item.shipping.plainString,
@@ -214,6 +219,8 @@ enum BackupService {
                 listPrice: dto.listPrice.decimalValue
             )
             item.statusRaw = dto.status
+            item.batteryHealth = dto.batteryHealth ?? 0
+            item.batteryCycles = dto.batteryCycles ?? 0
             item.soldPrice = dto.soldPrice.decimalValue
             item.landedCost = dto.landedCost.decimalValue
             item.inboundAt = dto.inboundAt

@@ -34,11 +34,16 @@ struct Verify {
         draft.exchangeRate = "420"
         draft.shipping = "120"
         draft.listPrice = "2300000"
+        draft.batteryHealth = "78"
+        draft.batteryCycles = "890"
 
         let item = try InventoryService.intake(draft, in: context)
         check("入库规范化序列号", item.serialNumber == "C02ABC123", item.serialNumber)
         check("总进价 = 1000×420+120", item.landedCost == 420120, "\(item.landedCost)")
         check("默认状态为在库", item.status == .inStock)
+        check("电池健康写入", item.batteryHealth == 78, "\(item.batteryHealth)")
+        check("循环次数写入", item.batteryCycles == 890, "\(item.batteryCycles)")
+        check("健康 < 80 判为电池偏弱", item.isBatteryWeak)
 
         var duplicate = draft
         duplicate.serialNumber = "C02ABC123"
@@ -237,6 +242,37 @@ struct Verify {
         } catch {
             check("缺汇率被拦截", true)
         }
+
+        // MARK: 电池、批次状态、客户等级
+
+        let batterySnapshot = try BackupService.makeSnapshot(from: context)
+        let decoded = try BackupService.decode(try BackupService.jsonData(batterySnapshot))
+        let dto = decoded.items.first { $0.serialNumber == "C02ABC123" }
+        check("备份保留电池健康", dto?.batteryHealth == 78, "\(String(describing: dto?.batteryHealth))")
+        check("备份保留循环次数", dto?.batteryCycles == 890, "\(String(describing: dto?.batteryCycles))")
+
+        let stageBatch = Batch()
+        stageBatch.name = "状态测试"
+        stageBatch.exchangeRate = 400
+        stageBatch.totalShipping = 100
+        context.insert(stageBatch)
+        check("空批次 = 待入库", stageBatch.stage == .empty, stageBatch.stage.rawValue)
+
+        var stageDraft = IntakeDraft()
+        stageDraft.serialNumber = "STG001"
+        stageDraft.modelName = "MacBook Air M2"
+        stageDraft.costCNY = "100"
+        stageDraft.exchangeRate = "400"
+        _ = try InventoryService.intake(stageDraft, batch: stageBatch, in: context)
+        check("入库并分摊后 = 已入库", stageBatch.stage == .settled, stageBatch.stage.rawValue)
+
+        stageBatch.totalShipping = 200
+        check("改总运费后 = 待分摊", stageBatch.stage == .pending, stageBatch.stage.rawValue)
+
+        let customerList = CustomerSummary.build(from: try context.fetch(FetchDescriptor<Order>()))
+        let zhang = customerList.first { $0.name == "张三" }
+        check("单次购买 = 潜力客户", zhang?.tier == .potential, zhang?.tier.rawValue ?? "nil")
+        check("客户最近购买型号", zhang?.lastModel == "MacBook Air M2 13\"", zhang?.lastModel ?? "nil")
 
         // MARK: 金额大写
 

@@ -17,6 +17,11 @@ final class Item {
     var conditionRaw: String = ItemCondition.p95.rawValue
     var statusRaw: String = ItemStatus.inStock.rawValue
 
+    /// 电池健康百分比；0 表示未检测（老数据与快速录入都是 0）
+    var batteryHealth: Int = 0
+    /// 电池循环次数；0 表示未检测
+    var batteryCycles: Int = 0
+
     // 成本（入库时快照，之后不随汇率浮动）
     /// 人民币进价——国内卖家的报价
     @Attribute(originalName: "costAmount") var costCNY: Decimal = 0
@@ -51,7 +56,9 @@ final class Item {
         costCNY: Decimal = 0,
         exchangeRate: Decimal = 1,
         shipping: Decimal = 0,
-        listPrice: Decimal = 0
+        listPrice: Decimal = 0,
+        batteryHealth: Int = 0,
+        batteryCycles: Int = 0
     ) {
         self.serialNumber = serialNumber
         self.modelName = modelName
@@ -60,6 +67,8 @@ final class Item {
         self.storage = storage
         self.color = color
         self.conditionRaw = condition.rawValue
+        self.batteryHealth = batteryHealth
+        self.batteryCycles = batteryCycles
         self.costCNY = costCNY
         self.exchangeRate = exchangeRate
         self.shipping = shipping
@@ -106,5 +115,29 @@ final class Item {
 
     var isOverdue: Bool {
         status == .inStock && ageInDays >= Self.overdueDays
+    }
+
+    // MARK: - 电池
+
+    /// 低于该健康度视为议价点
+    static let weakHealth = 80
+    /// 超过该循环次数视为电池损耗明显
+    static let highCycles = 800
+
+    var hasBatteryData: Bool {
+        batteryHealth > 0 || batteryCycles > 0
+    }
+
+    /// 健康度偏低或循环次数偏高——二手 MacBook 的主要压价理由
+    var isBatteryWeak: Bool {
+        (batteryHealth > 0 && batteryHealth < Self.weakHealth) || batteryCycles >= Self.highCycles
+    }
+
+    var batteryHealthText: String {
+        batteryHealth > 0 ? "\(batteryHealth)%" : "—"
+    }
+
+    var batteryCyclesText: String {
+        batteryCycles > 0 ? "\(batteryCycles) 次" : "—"
     }
 }

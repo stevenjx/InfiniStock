@@ -87,14 +87,15 @@ struct DashboardContent: View {
                 value: stats.todayRevenue.mmk,
                 systemImage: "cart.fill",
                 tone: .brand,
-                delta: "今日成交 \(stats.todayCount) 台"
+                delta: dayOverDay(stats.todayRevenue, stats.yesterdayRevenue),
+                deltaTone: stats.todayRevenue >= stats.yesterdayRevenue ? .ok : .danger
             )
             StatCard(
                 title: "今日毛利",
                 value: stats.todayProfit.signedMMK,
                 systemImage: "chart.line.uptrend.xyaxis",
                 tone: stats.todayProfit < 0 ? .danger : .ok,
-                delta: stats.todayMarginRate.map { "毛利率 \(Money.text($0))%" },
+                delta: stats.todayMarginRate.map { "毛利率 \(Money.text($0))%" } ?? "今日无成交",
                 deltaTone: (stats.todayMarginRate ?? 0) < 0 ? .danger : .ok
             )
             StatCard(
@@ -274,7 +275,7 @@ struct DashboardContent: View {
 
     @ViewBuilder
     private var alertSection: some View {
-        if stats.lowMarginItems.isEmpty && stats.overdueItems.isEmpty {
+        if stats.lowMarginItems.isEmpty && stats.overdueItems.isEmpty && stats.weakBatteryItems.isEmpty {
             EmptyView()
         } else {
             VStack(alignment: .leading, spacing: Token.Space.s) {
@@ -293,6 +294,13 @@ struct DashboardContent: View {
                             tone: .danger
                         )
                     }
+                    ForEach(stats.weakBatteryItems.prefix(3)) { item in
+                        AlertCard(
+                            title: "电池偏弱 · \(item.modelName)",
+                            message: "健康 \(item.batteryHealthText) · 循环 \(item.batteryCyclesText)，建议检测或作为议价点说明",
+                            tone: .warn
+                        )
+                    }
                     ForEach(stats.overdueItems.prefix(3)) { item in
                         AlertCard(
                             title: "库存超期 · \(item.modelName)",
@@ -303,6 +311,16 @@ struct DashboardContent: View {
                 }
             }
         }
+    }
+
+    /// 环比：昨日无成交时不编造百分比，直接说明没有对比基数
+    private func dayOverDay(_ today: Decimal, _ yesterday: Decimal) -> String {
+        guard yesterday > 0 else {
+            return today > 0 ? "昨日无成交" : "暂无成交"
+        }
+        let change = ((today - yesterday) / yesterday * 100).rounded(1)
+        let sign = change > 0 ? "+" : ""
+        return "较昨日 \(sign)\(Money.text(change))%"
     }
 
     private func legend(color: Color, label: String) -> some View {

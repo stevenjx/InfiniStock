@@ -12,6 +12,8 @@ struct InventoryTableView: View {
     var onStatusChange: (ItemStatus?) -> Void = { _ in }
     /// Delete 键触发；由上层做身份验证与落库
     var onDeleteRequest: ([Item]) -> Void = { _ in }
+    /// 空状态里的「入库第一台」
+    var onIntake: () -> Void = {}
 
     @Query(sort: \Item.inboundAt, order: .reverse) private var items: [Item]
     @State private var sortOrder: [KeyPathComparator<Item>] = [KeyPathComparator(\Item.inboundAt, order: .reverse)]
@@ -50,9 +52,9 @@ struct InventoryTableView: View {
         Table(of: Item.self, selection: $selection, sortOrder: $sortOrder) {
             TableColumn("型号", value: \.modelName) { item in
                 CellTitle(title: item.modelName, subtitle: item.serialNumber)
-                    .padding(.vertical, 6)
+                    .padding(.vertical, 8)
             }
-            .width(min: 138, ideal: 170)
+            .width(min: 120, ideal: 140)
 
             TableColumn("规格") { item in
                 Text(specText(item))
@@ -60,14 +62,28 @@ struct InventoryTableView: View {
                     .foregroundStyle(Token.Ink.secondary)
                     .lineLimit(1)
             }
-            .width(min: 56, ideal: 72)
+            .width(min: 48, ideal: 56)
+
+            TableColumn("成色") { item in
+                Text(item.condition.rawValue)
+                    .font(Token.Typography.caption)
+                    .foregroundStyle(Token.Ink.secondary)
+                    .lineLimit(1)
+            }
+            .width(min: 40, ideal: 46)
+
+            TableColumn("电池") { item in
+                batteryCell(item)
+            }
+            .width(min: 46, ideal: 54)
 
             TableColumn("总进价", value: \.landedCost) { item in
                 Text(item.landedCost.mmk)
                     .font(Token.Typography.money)
                     .foregroundStyle(Token.Ink.primary)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
-            .width(min: 88, ideal: 100)
+            .width(min: 80, ideal: 90)
 
             TableColumn("标价 / 毛利", value: \.listPrice) { item in
                 let profit = item.listPrice - item.landedCost
@@ -83,7 +99,7 @@ struct InventoryTableView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .trailing)
             }
-            .width(min: 88, ideal: 100)
+            .width(min: 80, ideal: 90)
 
             TableColumn("库龄") { item in
                 if item.isOverdue {
@@ -92,9 +108,10 @@ struct InventoryTableView: View {
                     Text("\(item.ageInDays) 天")
                         .font(Token.Typography.money)
                         .foregroundStyle(Token.Ink.secondary)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
-            .width(min: 50, ideal: 58)
+            .width(min: 42, ideal: 48)
 
             if statusFilter == nil {
                 TableColumn("状态", value: \.statusRaw) { item in
@@ -131,11 +148,12 @@ struct InventoryTableView: View {
         .overlay {
             if rows.isEmpty {
                 EmptyState(
-                    title: searchText.isEmpty ? "没有机器" : "没有匹配结果",
-                    message: searchText.isEmpty ? "点工具栏「入库」或按 ⌘N 录入第一台" : "换个序列号或型号关键词试试",
-                    systemImage: searchText.isEmpty ? "shippingbox" : "magnifyingglass"
+                    title: searchText.isEmpty ? "还没有机器" : "没有匹配结果",
+                    message: searchText.isEmpty ? "录入第一台 MacBook，成本、标价与电池一次填完" : "换个序列号或型号关键词试试",
+                    systemImage: searchText.isEmpty ? "shippingbox" : "magnifyingglass",
+                    actionTitle: searchText.isEmpty ? "入库第一台" : nil,
+                    action: searchText.isEmpty ? onIntake : nil
                 )
-                .allowsHitTesting(false)
             }
         }
     }
@@ -192,6 +210,21 @@ struct InventoryTableView: View {
         guard !chosen.isEmpty else { return nil }
         let cost = chosen.reduce(Decimal(0)) { $0 + $1.landedCost }
         return "已选中 \(chosen.count) 台 · 成本 \(cost.mmk)"
+    }
+
+    /// 电池：健康度为主、循环次数为副。低于阈值转黄，这是二手 MacBook 的压价点。
+    private func batteryCell(_ item: Item) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(item.batteryHealthText)
+                .font(Token.Typography.money)
+                .foregroundStyle(item.isBatteryWeak ? Token.Status.warn : Token.Ink.primary)
+            if item.batteryCycles > 0 {
+                Text("\(item.batteryCycles) 次")
+                    .font(Token.Typography.caption)
+                    .foregroundStyle(Token.Ink.tertiary)
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 
     private func specText(_ item: Item) -> String {

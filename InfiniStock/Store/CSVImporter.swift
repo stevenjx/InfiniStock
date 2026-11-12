@@ -19,6 +19,8 @@ enum CSVImporter {
         let exchangeRate: Decimal
         let shipping: Decimal
         let listPrice: Decimal
+        let batteryHealth: Int
+        let batteryCycles: Int
     }
 
     struct Issue: Identifiable {
@@ -43,6 +45,8 @@ enum CSVImporter {
         "存储": "storage", "storage": "storage", "capacity": "storage",
         "颜色": "color", "color": "color",
         "成色": "condition", "condition": "condition", "grade": "condition",
+        "电池健康": "battery", "电池": "battery", "battery": "battery", "batteryhealth": "battery",
+        "循环次数": "cycles", "循环": "cycles", "cycles": "cycles", "batterycycles": "cycles",
         "进价": "cost", "进价(人民币)": "cost", "cost": "cost", "costamount": "cost",
         "汇率": "rate", "rate": "rate", "exchangerate": "rate",
         "运费": "shipping", "运费(缅币)": "shipping", "shipping": "shipping",
@@ -112,6 +116,12 @@ enum CSVImporter {
             guard let shipping = number(value("shipping"), field: "运费", line: line, issues: &issues, default: 0) else { continue }
             guard let list = number(value("list"), field: "标价", line: line, issues: &issues, default: 0) else { continue }
 
+            let battery = intValue(value("battery"), field: "电池健康", line: line, issues: &issues)
+            let cycles = intValue(value("cycles"), field: "循环次数", line: line, issues: &issues)
+            if let battery, !(0...100).contains(battery) {
+                issues.append(Issue(line: line, field: "电池健康", reason: "需在 0–100 之间"))
+                continue
+            }
             if rate <= 0 {
                 issues.append(Issue(line: line, field: "汇率", reason: "必须大于 0"))
                 continue
@@ -133,7 +143,9 @@ enum CSVImporter {
                 costCNY: cost,
                 exchangeRate: rate,
                 shipping: shipping,
-                listPrice: list
+                listPrice: list,
+                batteryHealth: battery ?? 0,
+                batteryCycles: cycles ?? 0
             ))
         }
 
@@ -163,7 +175,9 @@ enum CSVImporter {
                 costCNY: plan.costCNY,
                 exchangeRate: plan.exchangeRate,
                 shipping: plan.shipping,
-                listPrice: plan.listPrice
+                listPrice: plan.listPrice,
+                batteryHealth: plan.batteryHealth,
+                batteryCycles: plan.batteryCycles
             )
             item.batch = batch
             context.insert(item)
@@ -299,6 +313,19 @@ enum CSVImporter {
         }
         if value < 0 {
             issues.append(Issue(line: line, field: field, reason: "不能为负数"))
+            return nil
+        }
+        return value
+    }
+
+    /// 电池字段整列缺失是正常的（老模板没有这两列），留空按未检测处理
+    private static func intValue(
+        _ raw: String, field: String, line: Int, issues: inout [Issue]
+    ) -> Int? {
+        let trimmed = raw.trimmingCharacters(in: .whitespaces)
+        if trimmed.isEmpty { return nil }
+        guard let value = Int(trimmed) else {
+            issues.append(Issue(line: line, field: field, reason: "不是整数"))
             return nil
         }
         return value

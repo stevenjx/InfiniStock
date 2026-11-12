@@ -31,7 +31,12 @@ enum DebugSeed {
             ("F2LX9K3QABCJ", "MacBook Air M3 13\"", "M3", "8GB", "256GB", 4_800, 55_000, 2_900_000, 2, 2),
         ]
 
-        for sample in samples {
+        // 电池数据：健康度、循环次数（第 4 台故意偏低，用来看黄色提示）
+        let battery: [(health: Int, cycles: Int)] = [
+            (92, 210), (88, 340), (85, 520), (78, 890), (90, 260), (96, 120),
+        ]
+
+        for (index, sample) in samples.enumerated() {
             let item = Item(
                 serialNumber: sample.serial,
                 modelName: sample.model,
@@ -45,6 +50,8 @@ enum DebugSeed {
                 shipping: sample.shipping,
                 listPrice: sample.list
             )
+            item.batteryHealth = battery[index].health
+            item.batteryCycles = battery[index].cycles
             item.inboundAt = Calendar.current.date(byAdding: .day, value: -sample.days, to: .now) ?? .now
             context.insert(item)
 

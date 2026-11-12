@@ -19,8 +19,10 @@ struct InfiniStockApp: App {
         WindowGroup {
             RootView(cloudSyncEnabled: cloudSyncEnabled)
                 .environment(appState)
+                .frame(minWidth: 1080, minHeight: 700)
         }
-        .defaultSize(width: 1280, height: 800)
+        .defaultSize(width: 1360, height: 880)
+        .windowResizability(.contentMinSize)
         .modelContainer(container)
         .commands {
             CommandGroup(replacing: .newItem) {
@@ -34,6 +36,11 @@ struct InfiniStockApp: App {
                     appState.showingSearch = true
                 }
                 .keyboardShortcut("f", modifiers: .command)
+
+                Button("出库销售") {
+                    appState.saleRequest = true
+                }
+                .keyboardShortcut("s", modifiers: [.command, .shift])
 
                 Button("批量导入 CSV…") {
                     appState.showingImport = true

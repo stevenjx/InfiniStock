@@ -36,6 +36,7 @@ struct PageHeader<Actions: View>: View {
             }
             .font(Token.Typography.caption)
             .lineLimit(1)
+            .accessibilityElement(children: .combine)
 
             if Actions.self != EmptyView.self {
                 HStack(spacing: Token.Space.s) {

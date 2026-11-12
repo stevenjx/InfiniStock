@@ -72,6 +72,7 @@ struct RootView: View {
                         .inspectorColumnWidth(min: 230, ideal: 270, max: 340)
                 }
         }
+        .frame(minWidth: 1080, minHeight: 700)
         .sheet(isPresented: $appState.showingIntake) { IntakeSheet() }
         .sheet(isPresented: $appState.showingImport) { ImportSheet() }
         .sheet(isPresented: $appState.showingSettings) {
@@ -84,6 +85,11 @@ struct RootView: View {
                 openWindow(id: "dashboard")
                 appState.showingDashboard = false
             }
+        }
+        .onChange(of: appState.saleRequest) { _, requested in
+            guard requested else { return }
+            appState.saleRequest = false
+            if canSell { showingSale = true }
         }
         .onChange(of: appState.sectionRequest) { _, request in
             guard let request else { return }
@@ -185,7 +191,7 @@ struct RootView: View {
         .navigationTitle("")
     }
 
-    /// 销售页在卡片上方多一层 KPI 结论，其余页面直接是卡片。
+    /// 销售/采购/客户三页在卡片上方多一层 KPI 结论，库存页直接是卡片。
     @ViewBuilder
     private func bodyColumn(searchPresented: Binding<Bool>) -> some View {
         switch activeSection {
@@ -195,7 +201,19 @@ struct RootView: View {
                 sectionBody(searchPresented: searchPresented)
                     .cardSurface()
             }
-        default:
+        case .batches:
+            VStack(spacing: Token.Space.m) {
+                BatchesKpiStrip()
+                sectionBody(searchPresented: searchPresented)
+                    .cardSurface()
+            }
+        case .customers:
+            VStack(spacing: Token.Space.m) {
+                CustomersKpiStrip()
+                sectionBody(searchPresented: searchPresented)
+                    .cardSurface()
+            }
+        case .stock:
             sectionBody(searchPresented: searchPresented)
                 .cardSurface()
         }
@@ -210,14 +228,23 @@ struct RootView: View {
                 selection: $itemSelection,
                 searchPresented: searchPresented,
                 onStatusChange: { section = .stock($0) },
-                onDeleteRequest: { pendingDelete = $0 }
+                onDeleteRequest: { pendingDelete = $0 },
+                onIntake: { appState.showingIntake = true }
             )
         case .orders:
-            OrdersView(selection: $orderSelection, searchPresented: searchPresented)
+            OrdersView(
+                selection: $orderSelection,
+                searchPresented: searchPresented,
+                onOpenStock: { section = .stock(.inStock) }
+            )
         case .batches:
             BatchesView(selection: $batchSelection, searchPresented: searchPresented)
         case .customers:
-            CustomersView(selection: $customerSelection, searchPresented: searchPresented)
+            CustomersView(
+                selection: $customerSelection,
+                searchPresented: searchPresented,
+                onOpenStock: { section = .stock(.inStock) }
+            )
         }
     }
 
@@ -233,9 +260,9 @@ struct RootView: View {
                 .init(label: "成本", value: cost.mmk),
                 .init(label: "标价", value: listed.mmk),
             ]
-        case .orders:
-            // 金额已由页面上方的 KPI 卡承担，页头只留单据总数，避免两处报数
-            return [.init(label: "累计单据", value: "\(allOrders.count) 张")]
+        case .orders, .batches, .customers:
+            // 金额已由页面上方的 KPI 卡承担，页头不再重复报数
+            return []
         case .batches:
             let cost = allBatches.reduce(Decimal(0)) { total, batch in
                 total + batch.itemList.reduce(Decimal(0)) { $0 + $1.landedCost }

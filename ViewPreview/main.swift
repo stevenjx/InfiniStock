@@ -85,32 +85,32 @@ struct ViewPreview {
 
         let batch = Batch()
         batch.name = "2026-11 深圳批"
-        batch.currency = .usd
-        batch.exchangeRate = 7.1234
-        batch.totalShipping = 240
+        batch.exchangeRate = 420
+        batch.totalShipping = 240_000
         batch.allocation = .byValue
         context.insert(batch)
 
         var draft = IntakeDraft()
         draft.serialNumber = "F2LX9K3QABCD"
-        draft.modelName = "iPhone 17 Pro Max"
-        draft.chip = "A19 Pro"
+        draft.modelName = "MacBook Air M2 13\""
+        draft.chip = "M2"
         draft.memory = "8GB"
         draft.storage = "256GB"
-        draft.color = "深空黑"
+        draft.color = "深空灰"
         draft.condition = .p95
-        draft.costCNY = "980"
-        draft.currency = .usd
-        draft.exchangeRate = "7.1234"
-        draft.shipping = "120"
-        draft.listPrice = "8999"
+        draft.batteryHealth = "92"
+        draft.batteryCycles = "210"
+        draft.costCNY = "3600"
+        draft.exchangeRate = "420"
+        draft.shipping = "55000"
+        draft.listPrice = "2250000"
         _ = try? InventoryService.intake(draft, batch: batch, in: context)
 
         var second = draft
         second.serialNumber = "F2LX9K3QABCE"
-        second.modelName = "iPhone 16"
-        second.storage = "128GB"
-        second.listPrice = "4699"
+        second.modelName = "MacBook Pro 14\" M3 Pro"
+        second.storage = "512GB"
+        second.listPrice = "4900000"
         let old = try? InventoryService.intake(second, in: context)
         old?.inboundAt = Calendar.current.date(byAdding: .day, value: -92, to: .now) ?? .now
 

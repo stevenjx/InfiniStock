@@ -11,4 +11,6 @@ final class AppState {
     /// 分区快捷键（⌘1–⌘4）请求；由 RootView 消费
     var sectionRequest: SidebarSection?
     var showingDashboard = false
+    /// ⌘⇧S 出库请求；由 RootView 判断当前是否可出库后消费
+    var saleRequest = false
 }

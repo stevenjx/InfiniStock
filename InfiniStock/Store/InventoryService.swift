@@ -9,6 +9,7 @@ enum InventoryError: LocalizedError {
     case emptySelection
     case invalidAmount(String)
     case invalidRate
+    case batteryOutOfRange
     case invalidDiscount
     case discountTooLarge(Decimal)
     case cannotDelete(String, String)
@@ -22,6 +23,7 @@ enum InventoryError: LocalizedError {
         case .emptySelection: "请先选择要出库的机器"
         case .invalidAmount(let field): "\(field) 不是有效数字"
         case .invalidRate: "汇率必须大于 0（1 元人民币 = N 缅币）"
+        case .batteryOutOfRange: "电池健康需在 0–100 之间，循环次数不能为负数"
         case .invalidDiscount: "折扣与抹零不能为负数"
         case .discountTooLarge(let subtotal): "折扣加抹零超过商品小计 \(subtotal.mmk)"
         case .cannotDelete(let serial, let reason): "序列号 \(serial) 无法删除：\(reason)"
@@ -46,6 +48,10 @@ struct IntakeDraft {
     var shipping = "0"
     /// 缅币标价
     var listPrice = ""
+    /// 电池健康百分比，留空表示未检测
+    var batteryHealth = ""
+    /// 电池循环次数，留空表示未检测
+    var batteryCycles = ""
 
     var previewLandedCost: Decimal {
         Money.landedCost(
@@ -82,6 +88,9 @@ enum InventoryService {
         guard rate > 0 else { throw InventoryError.invalidRate }
         let shipping = try amount(draft.shipping, field: "运费", fallback: 0)
         let listPrice = try amount(draft.listPrice, field: "标价", fallback: 0)
+        let health = try intAmount(draft.batteryHealth, field: "电池健康", fallback: 0)
+        let cycles = try intAmount(draft.batteryCycles, field: "循环次数", fallback: 0)
+        guard (0...100).contains(health), cycles >= 0 else { throw InventoryError.batteryOutOfRange }
 
         let item = Item(
             serialNumber: serial,
@@ -94,7 +103,9 @@ enum InventoryService {
             costCNY: cost,
             exchangeRate: rate,
             shipping: shipping,
-            listPrice: listPrice
+            listPrice: listPrice,
+            batteryHealth: health,
+            batteryCycles: cycles
         )
         context.insert(item)
 
@@ -203,6 +214,13 @@ enum InventoryService {
         // 重复 insert/delete；批次若只剩它自己，分摊也无意义，交给 next reallocate 处理
         context.delete(item)
         try context.save()
+    }
+
+    private static func intAmount(_ text: String, field: String, fallback: Int) throws -> Int {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        if trimmed.isEmpty { return fallback }
+        guard let value = Int(trimmed) else { throw InventoryError.invalidAmount(field) }
+        return value
     }
 
     private static func amount(_ text: String, field: String, fallback: Decimal) throws -> Decimal {

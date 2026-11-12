@@ -37,7 +37,7 @@ struct CellTitle: View {
     var monospacedSubtitle = true
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 1) {
+        VStack(alignment: .leading, spacing: 2) {
             Text(title)
                 .font(Token.Typography.cellPrimary)
                 .foregroundStyle(Token.Ink.primary)
@@ -187,6 +187,9 @@ struct EmptyState: View {
     let title: String
     let message: String
     var systemImage: String = "shippingbox"
+    /// 空状态最怕"只有一句话"，给一个能立刻点的下一步
+    var actionTitle: String?
+    var action: (() -> Void)?
 
     var body: some View {
         VStack(spacing: Token.Space.s) {
@@ -200,6 +203,12 @@ struct EmptyState: View {
                 .font(Token.Typography.caption)
                 .foregroundStyle(Token.Ink.secondary)
                 .multilineTextAlignment(.center)
+            if let actionTitle, let action {
+                Button(actionTitle, action: action)
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .padding(.top, Token.Space.xs)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(Token.Space.xl)

@@ -63,7 +63,7 @@ enum Token {
 
     enum Typography {
         /// 页面大标题
-        static let screenTitle = Font.system(size: 25, weight: .bold)
+        static let screenTitle = Font.system(size: 26, weight: .bold)
         static let pageTitle = Font.system(size: 22, weight: .semibold)
         static let cardTitle = Font.system(size: 13, weight: .semibold)
         static let body = Font.system(size: 13)

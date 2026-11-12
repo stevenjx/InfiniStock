@@ -1,10 +1,63 @@
 import SwiftUI
 import SwiftData
 
+/// 客户页的结论层：多少人在买、买了多少。
+struct CustomersKpiStrip: View {
+    @Query private var orders: [Order]
+
+    private var customers: [CustomerSummary] {
+        CustomerSummary.build(from: orders)
+    }
+
+    private var revenue: Decimal {
+        customers.reduce(Decimal(0)) { $0 + $1.revenue }
+    }
+
+    private var averageOrder: Decimal {
+        let count = customers.reduce(0) { $0 + $1.orderCount }
+        guard count > 0 else { return 0 }
+        return (revenue / Decimal(count)).rounded(0)
+    }
+
+    private var repeatRate: String {
+        guard !customers.isEmpty else { return "暂无客户" }
+        let repeaters = customers.filter { $0.orderCount > 1 }.count
+        return "复购 \((Decimal(repeaters) / Decimal(customers.count) * 100).rounded(0))%"
+    }
+
+    var body: some View {
+        HStack(spacing: Token.Space.m) {
+            StatCard(
+                title: "客户数",
+                value: "\(customers.count) 位",
+                systemImage: "person.2.fill",
+                tone: .brand,
+                delta: repeatRate
+            )
+            StatCard(
+                title: "累计消费",
+                value: revenue.mmk,
+                systemImage: "creditcard.fill",
+                tone: .ok,
+                delta: "\(customers.reduce(0) { $0 + $1.machineCount }) 台"
+            )
+            StatCard(
+                title: "平均客单价",
+                value: averageOrder.mmk,
+                systemImage: "chart.bar.fill",
+                tone: .neutral,
+                delta: "按单据均摊"
+            )
+        }
+    }
+}
+
 /// 客户列表。客户不是实体，由有效单据按「姓名 + 电话」聚合而来。
 struct CustomersView: View {
     @Binding var selection: String?
     @Binding var searchPresented: Bool
+    /// 空状态里的「去库存开单」
+    var onOpenStock: () -> Void = {}
     @State private var searchText = ""
 
     @Query(sort: \Order.createdAt, order: .reverse) private var orders: [Order]
@@ -37,60 +90,78 @@ struct CustomersView: View {
 
     private var table: some View {
         Table(customers, selection: $selection) {
-                TableColumn("客户") { customer in
-                    CellTitle(
-                        title: customer.name,
-                        subtitle: customer.contact.isEmpty ? "未留联系方式" : customer.contact,
-                        monospacedSubtitle: false
-                    )
-                }
-                .width(min: 128, ideal: 156)
+            TableColumn("客户") { customer in
+                CellTitle(
+                    title: customer.name,
+                    subtitle: customer.contact.isEmpty ? "未留联系方式" : customer.contact,
+                    monospacedSubtitle: false
+                )
+            }
+            .width(min: 118, ideal: 140)
 
-                TableColumn("单据") { customer in
-                    Text("\(customer.orderCount) 张")
-                        .font(Token.Typography.money)
-                        .foregroundStyle(Token.Ink.secondary)
-                }
-                .width(min: 50, ideal: 56)
+            TableColumn("购买次数") { customer in
+                Text("\(customer.orderCount) 次")
+                    .font(Token.Typography.money)
+                    .foregroundStyle(Token.Ink.secondary)
+            }
+            .width(min: 56, ideal: 62)
 
-                TableColumn("台数") { customer in
-                    Text("\(customer.machineCount)")
-                        .font(Token.Typography.money)
-                        .foregroundStyle(Token.Ink.primary)
-                }
-                .width(min: 36, ideal: 40)
+            TableColumn("累计消费") { customer in
+                Text(customer.revenue.mmk)
+                    .font(Token.Typography.money)
+                    .foregroundStyle(Token.Ink.primary)
+            }
+            .width(min: 88, ideal: 100)
 
-                TableColumn("累计消费") { customer in
-                    Text(customer.revenue.mmk)
-                        .font(Token.Typography.money)
-                        .foregroundStyle(Token.Ink.primary)
-                }
-                .width(min: 84, ideal: 94)
+            TableColumn("最近购买型号") { customer in
+                Text(customer.lastModel.isEmpty ? "—" : customer.lastModel)
+                    .font(Token.Typography.caption)
+                    .foregroundStyle(Token.Ink.secondary)
+                    .lineLimit(1)
+            }
+            .width(min: 96, ideal: 116)
 
-                TableColumn("累计毛利") { customer in
-                    Text(customer.profit.signedMMK)
-                        .font(Token.Typography.money)
-                        .foregroundStyle(customer.profit < 0 ? Token.Status.danger : Token.Status.ok)
-                }
-                .width(min: 78, ideal: 88)
-
-                TableColumn("最近购买") { customer in
+            TableColumn("上次购买") { customer in
+                VStack(alignment: .leading, spacing: 1) {
                     Text(customer.lastPurchase.formatted(date: .numeric, time: .omitted))
                         .font(Token.Typography.caption)
                         .foregroundStyle(Token.Ink.secondary)
+                    Text(customer.daysSinceLastPurchase == 0 ? "今天" : "\(customer.daysSinceLastPurchase) 天前")
+                        .font(Token.Typography.caption)
+                        .foregroundStyle(Token.Ink.tertiary)
                 }
-                .width(min: 78, ideal: 88)
             }
-            .tableStyle(.inset(alternatesRowBackgrounds: false))
+            .width(min: 74, ideal: 84)
+
+            TableColumn("等级") { customer in
+                Badge(
+                    text: customer.tier.rawValue,
+                    tone: tone(for: customer.tier),
+                    style: customer.tier == .dormant ? .outline : .filled
+                )
+            }
+            .width(min: 50, ideal: 58)
+        }
+        .tableStyle(.inset(alternatesRowBackgrounds: false))
         .overlay {
             if customers.isEmpty {
                 EmptyState(
                     title: searchText.isEmpty ? "还没有客户" : "没有匹配结果",
-                    message: searchText.isEmpty ? "开单时填上客户姓名，这里会自动汇总" : "换个姓名或电话试试",
-                    systemImage: "person.2"
+                    message: searchText.isEmpty ? "开单时填上客户姓名与电话，这里会自动汇总" : "换个姓名或电话试试",
+                    systemImage: "person.2",
+                    actionTitle: searchText.isEmpty ? "去库存开单" : nil,
+                    action: searchText.isEmpty ? onOpenStock : nil
                 )
-                .allowsHitTesting(false)
             }
+        }
+    }
+
+    private func tone(for tier: CustomerTier) -> Tone {
+        switch tier {
+        case .vip: .brand
+        case .active: .ok
+        case .potential: .warn
+        case .dormant: .neutral
         }
     }
 
@@ -123,6 +194,8 @@ struct CustomerDetailView: View {
                     PanelSection(title: "客户") {
                         KeyValueRow(label: "姓名", value: customer.name)
                         KeyValueRow(label: "电话", value: customer.contact)
+                        KeyValueRow(label: "等级", value: customer.tier.rawValue)
+                        KeyValueRow(label: "最近型号", value: customer.lastModel)
                         KeyValueRow(label: "最近购买", value: customer.lastPurchase.compactStamp)
                     }
 
