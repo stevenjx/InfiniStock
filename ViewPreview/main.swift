@@ -30,6 +30,10 @@ struct ViewPreview {
             .padding(12)
             .frame(width: 300, height: 460, alignment: .top)
 
+        let stats = InventoryStatistics(items: items, orders: (try? context.fetch(FetchDescriptor<Order>())) ?? [])
+        let dash = DashboardContent(stats: stats, cloudSyncEnabled: false, backupConfigured: false)
+            .frame(width: 620)
+
         let inspectorMulti = InspectorContent(items: items)
             .modelContainer(container)
             .padding(12)
@@ -41,6 +45,7 @@ struct ViewPreview {
             VStack(spacing: 0) {
                 panel(.light, title: "检查器") { inspector }
                 panel(.dark, title: "多选") { inspectorMulti }
+                panel(.dark, title: "仪表盘") { dash }
             }
         }
 

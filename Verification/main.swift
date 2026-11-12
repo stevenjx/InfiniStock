@@ -933,6 +933,69 @@ struct Verify {
             check("损坏数据拒绝打印", true)
         }
 
+
+        // MARK: U4 仪表盘口径
+
+        let dashSchema = Schema([Item.self, Order.self, Batch.self])
+        let dashConfig = ModelConfiguration(schema: dashSchema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let dashContainer = try ModelContainer(for: dashSchema, configurations: [dashConfig])
+        let dash = dashContainer.mainContext
+
+        func dashItem(_ serial: String, cost: Decimal, list: Decimal) -> Item {
+            let item = Item(serialNumber: serial, modelName: "iPhone 17", costAmount: cost,
+                            currency: .cny, exchangeRate: 1, shippingCNY: 0, listPriceCNY: list)
+            dash.insert(item)
+            return item
+        }
+
+        // 今天两单（不同收款方式），一单作废
+        let d1 = dashItem("DSH1", cost: 3000, list: 5000)
+        _ = try InventoryService.sell(lines: [.init(item: d1, price: 5000)], customerName: "甲", customerContact: "",
+                                      discountCNY: 0, roundingCNY: 0, paymentMethod: .cash, in: dash)
+        let d2 = dashItem("DSH2", cost: 4000, list: 6000)
+        _ = try InventoryService.sell(lines: [.init(item: d2, price: 6000)], customerName: "乙", customerContact: "",
+                                      discountCNY: 0, roundingCNY: 0, paymentMethod: .transfer, in: dash)
+        let d3 = dashItem("DSH3", cost: 1000, list: 2000)
+        let voided = try InventoryService.sell(lines: [.init(item: d3, price: 2000)], customerName: "丙", customerContact: "",
+                                               discountCNY: 0, roundingCNY: 0, paymentMethod: .card, in: dash)
+        try OrderService.void(voided, in: dash)
+
+        // 一台成本高于标价（用于低于成本告警）
+        let overCost = dashItem("DSH4", cost: 9000, list: 5000)
+        // 一台超期
+        let stale = dashItem("DSH5", cost: 1500, list: 2500)
+        stale.inboundAt = Calendar.current.date(byAdding: .day, value: -120, to: .now) ?? .now
+        try dash.save()
+
+        let dashStats = InventoryStatistics(
+            items: try dash.fetch(FetchDescriptor<Item>()),
+            orders: try dash.fetch(FetchDescriptor<Order>())
+        )
+
+        check("仪表盘-今日销售额含两笔有效单", dashStats.todayRevenue == 11000, "\(dashStats.todayRevenue)")
+        check("仪表盘-今日毛利 = 2000+2000", dashStats.todayProfit == 4000, "\(dashStats.todayProfit)")
+        check("仪表盘-作废单不计入", !dashStats.dailyPoints.isEmpty && dashStats.dailyPoints.last!.revenue == 11000,
+              "\(dashStats.dailyPoints.last?.revenue ?? -1)")
+        check("仪表盘-7 天序列补齐", dashStats.dailyPoints.count == 7, "\(dashStats.dailyPoints.count)")
+        check("仪表盘-序列按日升序",
+              dashStats.dailyPoints.map(\.date) == dashStats.dailyPoints.map(\.date).sorted())
+        check("仪表盘-今日点位有 2 笔", dashStats.dailyPoints.last?.count == 2,
+              "\(dashStats.dailyPoints.last?.count ?? -1)")
+
+        let payments = Dictionary(uniqueKeysWithValues: dashStats.paymentSlices.map { ($0.method, $0.amount) })
+        check("仪表盘-现金 5000", payments[.cash] == 5000, "\(String(describing: payments[.cash]))")
+        check("仪表盘-转账 6000", payments[.transfer] == 6000, "\(String(describing: payments[.transfer]))")
+        check("仪表盘-作废单的收款方式不出现", payments[.card] == nil)
+
+        check("仪表盘-低于成本告警命中 1 台", dashStats.lowMarginItems.count == 1, "\(dashStats.lowMarginItems.count)")
+        check("仪表盘-告警机器正确", dashStats.lowMarginItems.first?.serialNumber == "DSH4")
+        check("仪表盘-超期告警命中", dashStats.overdueItems.contains { $0.serialNumber == "DSH5" })
+        check("仪表盘-近7天摘要与末点一致",
+              dashStats.summary(days: 1).revenue == 11000,
+              "\(dashStats.summary(days: 1).revenue)")
+        check("仪表盘-毛利率 4000/11000", dashStats.todayMarginRate == Decimal(string: "36.4"),
+              "\(String(describing: dashStats.todayMarginRate))")
+
         print(failures == 0 ? "\nALL CHECKS PASSED" : "\n\(failures) CHECK(S) FAILED")
         exit(failures == 0 ? 0 : 1)
     }

@@ -26,6 +26,14 @@ enum Token {
         static let fill = Color("AccentFill")
     }
 
+    /// 图表与徽章共用的状态色
+    enum Status {
+        static let ok = Color("StatusOK")
+        static let warn = Color("StatusWarn")
+        static let danger = Color("StatusDanger")
+        static let neutral = Color("StatusNeutral")
+    }
+
     enum Radius {
         static let badge: CGFloat = 999
         static let control: CGFloat = 8

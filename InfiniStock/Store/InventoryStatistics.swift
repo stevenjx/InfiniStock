@@ -9,6 +9,22 @@ struct InventoryStatistics {
         let value: Decimal
     }
 
+    /// 每日成交（用于柱状图）。date 已归一到当天零点。
+    struct DailyPoint: Identifiable {
+        let id: Date
+        let date: Date
+        let revenue: Decimal
+        let profit: Decimal
+        let count: Int
+    }
+
+    struct PaymentSlice: Identifiable {
+        let id: String
+        let method: PaymentMethod
+        let amount: Decimal
+        let count: Int
+    }
+
     let inStockCount: Int
     let stockCostValue: Decimal
     let stockListedValue: Decimal
@@ -17,6 +33,9 @@ struct InventoryStatistics {
     let todayProfit: Decimal
     let agingBuckets: [AgingBucket]
     let overdueItems: [Item]
+    let dailyPoints: [DailyPoint]
+    let paymentSlices: [PaymentSlice]
+    let lowMarginItems: [Item]
 
     var overdueValue: Decimal {
         overdueItems.reduce(Decimal(0)) { $0 + $1.landedCostCNY }
@@ -32,7 +51,22 @@ struct InventoryStatistics {
         return (todayProfit / todayRevenue * 100).rounded(1)
     }
 
-    init(items: [Item], orders: [Order] = [], now: Date = .now, calendar: Calendar = .current) {
+    /// 近 N 天合计，用于图表下方摘要
+    func summary(days: Int) -> (revenue: Decimal, profit: Decimal) {
+        let slice = dailyPoints.suffix(days)
+        return (
+            slice.reduce(Decimal(0)) { $0 + $1.revenue },
+            slice.reduce(Decimal(0)) { $0 + $1.profit }
+        )
+    }
+
+    init(
+        items: [Item],
+        orders: [Order] = [],
+        now: Date = .now,
+        calendar: Calendar = .current,
+        dayCount: Int = 7
+    ) {
         let inStock = items.filter { $0.status == .inStock }
         inStockCount = inStock.count
         stockCostValue = inStock.reduce(Decimal(0)) { $0 + $1.landedCostCNY }
@@ -46,9 +80,8 @@ struct InventoryStatistics {
 
         // 金额以单据为准：折扣与抹零只记在单据上，按机器累加会虚报收入。
         // 没有单据的历史数据（早期版本）才退回按机器累加。
-        let validOrdersToday = orders.filter { order in
-            !order.isVoided && calendar.isDate(order.createdAt, inSameDayAs: now)
-        }
+        let validOrders = orders.filter { !$0.isVoided }
+        let validOrdersToday = validOrders.filter { calendar.isDate($0.createdAt, inSameDayAs: now) }
         if validOrdersToday.isEmpty {
             todayRevenue = soldToday.reduce(Decimal(0)) { $0 + $1.soldPriceCNY }
             todayProfit = soldToday.reduce(Decimal(0)) { $0 + $1.grossProfitCNY }
@@ -76,5 +109,39 @@ struct InventoryStatistics {
         overdueItems = inStock
             .filter { $0.ageInDays >= Item.overdueDays }
             .sorted { $0.ageInDays > $1.ageInDays }
+
+        // 近 N 天：按自然日补零，保证柱状图 X 轴连续
+        var points: [DailyPoint] = []
+        for offset in stride(from: dayCount - 1, through: 0, by: -1) {
+            guard let dayStart = calendar.date(
+                byAdding: .day, value: -offset,
+                to: calendar.startOfDay(for: now)
+            ) else { continue }
+            let dayOrders = validOrders.filter { calendar.isDate($0.createdAt, inSameDayAs: dayStart) }
+            points.append(DailyPoint(
+                id: dayStart,
+                date: dayStart,
+                revenue: dayOrders.reduce(Decimal(0)) { $0 + $1.totalCNY },
+                profit: dayOrders.reduce(Decimal(0)) { $0 + $1.profitCNY },
+                count: dayOrders.count
+            ))
+        }
+        dailyPoints = points
+
+        paymentSlices = PaymentMethod.allCases.compactMap { method in
+            let matched = validOrders.filter { $0.paymentMethod == method }
+            guard !matched.isEmpty else { return nil }
+            return PaymentSlice(
+                id: method.rawValue,
+                method: method,
+                amount: matched.reduce(Decimal(0)) { $0 + $1.totalCNY },
+                count: matched.count
+            )
+        }
+
+        // 低于成本：在库且标价低于落地成本
+        lowMarginItems = inStock
+            .filter { $0.listPriceCNY > 0 && $0.listPriceCNY < $0.landedCostCNY }
+            .sorted { ($0.listPriceCNY - $0.landedCostCNY) < ($1.listPriceCNY - $1.landedCostCNY) }
     }
 }
