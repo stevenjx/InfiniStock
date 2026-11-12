@@ -1,9 +1,10 @@
 import SwiftUI
 import SwiftData
 
-/// 单据列表。行内用双行单元格展示单号与客户，状态走语义徽章。
+/// 单据列表。工具条与库存页同构，行内用双行单元格展示单号与客户。
 struct OrdersView: View {
     @Binding var selection: PersistentIdentifier?
+    @Binding var searchPresented: Bool
 
     @Query(sort: \Order.createdAt, order: .reverse) private var orders: [Order]
 
@@ -30,15 +31,18 @@ struct OrdersView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("筛选", selection: $statusFilter) {
-                ForEach(OrderStatusFilter.allCases) { filter in
-                    Text(filter.rawValue).tag(filter)
+            FilterBar {
+                SearchField(text: $searchText, prompt: "单号 / 客户 / 序列号", focusRequest: $searchPresented)
+
+                FilterPillGroup(label: "状态", options: statusOptions, selection: statusFilter) { filter in
+                    statusFilter = filter
                 }
+
+                Spacer(minLength: Token.Space.s)
+                Text("按日期倒序")
+                    .font(Token.Typography.caption)
+                    .foregroundStyle(Token.Ink.tertiary)
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .padding(.horizontal, Token.Space.m)
-            .padding(.vertical, Token.Space.s)
 
             Table(filtered, selection: $selection) {
                 TableColumn("单号") { order in
@@ -47,15 +51,16 @@ struct OrdersView: View {
                         subtitle: (order.customerName.isEmpty ? "散客" : order.customerName)
                             + " · \(order.itemList.count) 台"
                     )
+                    .padding(.vertical, 6)
                 }
                 .width(min: 130, ideal: 160)
 
                 TableColumn("日期") { order in
-                    Text(order.createdAt.formatted(date: .numeric, time: .shortened))
+                    Text(order.createdAt.compactStamp)
                         .font(Token.Typography.caption)
                         .foregroundStyle(Token.Ink.secondary)
                 }
-                .width(min: 84, ideal: 96)
+                .width(min: 92, ideal: 104)
 
                 TableColumn("应收") { order in
                     Text(order.totalCNY.cny)
@@ -81,7 +86,6 @@ struct OrdersView: View {
                 .width(min: 62, ideal: 70)
             }
             .tableStyle(.inset(alternatesRowBackgrounds: false))
-            .searchable(text: $searchText, prompt: "单号 / 客户 / 序列号")
             .overlay {
                 if filtered.isEmpty {
                     EmptyState(
@@ -92,8 +96,22 @@ struct OrdersView: View {
                     .allowsHitTesting(false)
                 }
             }
+
+            TableFooter(leading: footerLeading, trailing: footerTrailing)
         }
-        .navigationTitle("单据")
+    }
+
+    private var statusOptions: [PillOption<OrderStatusFilter>] {
+        OrderStatusFilter.allCases.map { PillOption(value: $0, title: $0.rawValue) }
+    }
+
+    private var footerLeading: String {
+        "共 \(filtered.count) 张"
+    }
+
+    private var footerTrailing: String? {
+        guard let selection, let order = orders.first(where: { $0.id == selection }) else { return nil }
+        return "\(order.number) · 应收 \(order.totalCNY.cny)"
     }
 
     private var filtered: [Order] {

@@ -11,64 +11,77 @@ struct OrderDetailView: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        Form {
-            Section("单据") {
-                LabeledContent("单号", value: order.number)
-                LabeledContent("日期", value: order.createdAt.formatted(date: .numeric, time: .shortened))
-                LabeledContent("状态", value: order.statusLabel)
-                LabeledContent("收款方式", value: order.paymentMethod.rawValue)
-                LabeledContent("客户", value: order.customerName.isEmpty ? "—" : order.customerName)
-                LabeledContent("联系方式", value: order.customerContact.isEmpty ? "—" : order.customerContact)
+        VStack(spacing: 0) {
+            PanelHeader(title: "订单详情", subtitle: order.number) {
+                Badge(
+                    text: order.statusLabel,
+                    tone: order.tone,
+                    style: order.isVoided ? .filled : .outline
+                )
             }
 
-            Section("金额") {
-                LabeledContent("商品小计", value: order.subtotalCNY.cny)
-                if order.discountCNY > 0 {
-                    LabeledContent("折扣 + 抹零", value: "−" + (order.discountCNY + order.roundingCNY).cny)
-                }
-                LabeledContent("应收合计") {
-                    Text(order.totalCNY.cny).fontWeight(.semibold)
-                }
-                LabeledContent("毛利") {
-                    Text(order.profitCNY.cny)
-                        .foregroundStyle(order.profitCNY < 0 ? Token.Status.danger : Token.Ink.primary)
-                }
-                if order.hasReturns {
-                    LabeledContent("已退货", value: "\(order.returnedCount) 台 · 退回 \(order.returnedAmountCNY.cny)")
-                }
-            }
+            ScrollView {
+                VStack(spacing: 0) {
+                    PanelSection(title: "单据") {
+                        KeyValueRow(label: "单号", value: order.number)
+                        KeyValueRow(label: "日期", value: order.createdAt.compactStamp)
+                        KeyValueRow(label: "状态", value: order.statusLabel)
+                        KeyValueRow(label: "收款方式", value: order.paymentMethod.rawValue)
+                        KeyValueRow(label: "客户", value: order.customerName.isEmpty ? "—" : order.customerName)
+                        KeyValueRow(label: "联系方式", value: order.customerContact.isEmpty ? "—" : order.customerContact)
+                    }
 
-            Section("机器（\(order.itemList.count) 台）") {
-                if order.itemList.isEmpty {
-                    Text("此单机器已全部退回").foregroundStyle(Token.Ink.secondary)
-                }
-                ForEach(order.itemList.sorted { $0.serialNumber < $1.serialNumber }) { item in
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(item.modelName)
-                            Text(item.serialNumber)
-                                .font(.caption)
-                                .monospaced()
+                    PanelSection(title: "金额") {
+                        KeyValueRow(label: "商品小计", value: order.subtotalCNY.cny)
+                        if order.discountCNY > 0 {
+                            KeyValueRow(label: "折扣 + 抹零", value: "−" + (order.discountCNY + order.roundingCNY).cny)
+                        }
+                        KeyValueRow(label: "应收合计", value: order.totalCNY.cny)
+                        KeyValueRow(
+                            label: "毛利",
+                            value: order.profitCNY.signedCNY,
+                            valueTone: order.profitCNY < 0 ? .danger : .ok
+                        )
+                        if order.hasReturns {
+                            KeyValueRow(
+                                label: "已退货",
+                                value: "\(order.returnedCount) 台 · 退回 \(order.returnedAmountCNY.cny)",
+                                valueTone: .warn
+                            )
+                        }
+                    }
+
+                    PanelSection(title: "机器", trailing: "\(order.itemList.count) 台") {
+                        if order.itemList.isEmpty {
+                            Text("此单机器已全部退回")
+                                .font(Token.Typography.caption)
                                 .foregroundStyle(Token.Ink.secondary)
                         }
-                        Spacer()
-                        Text(item.soldPriceCNY.cny).monospacedDigit()
+                        ForEach(order.itemList.sorted { $0.serialNumber < $1.serialNumber }) { item in
+                            HStack(spacing: Token.Space.s) {
+                                CellTitle(title: item.modelName, subtitle: item.serialNumber)
+                                Spacer()
+                                Text(item.soldPriceCNY.cny)
+                                    .font(Token.Typography.money)
+                                    .foregroundStyle(Token.Ink.primary)
+                            }
+                            .padding(.vertical, 2)
+                        }
                     }
                 }
             }
-        }
-        .formStyle(.grouped)
-        .navigationTitle(order.number)
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+
+            PanelFooter {
                 Button("凭证") { showingReceipt = true }
-            }
-            if !order.isVoided, !order.itemList.isEmpty {
-                ToolbarItem(placement: .primaryAction) {
+                    .buttonStyle(.borderedProminent)
+                if !order.isVoided, !order.itemList.isEmpty {
                     Button("退货…") { showingReturn = true }
                 }
+                Spacer(minLength: 0)
             }
         }
+        .background(Token.Surface.card)
+        .navigationTitle("")
         .sheet(isPresented: $showingReceipt) {
             ReceiptSheet(order: order)
         }

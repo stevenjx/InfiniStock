@@ -4,6 +4,7 @@ import SwiftData
 /// 客户列表。客户不是实体，由有效单据按「姓名 + 电话」聚合而来。
 struct CustomersView: View {
     @Binding var selection: String?
+    @Binding var searchPresented: Bool
     @State private var searchText = ""
 
     @Query(sort: \Order.createdAt, order: .reverse) private var orders: [Order]
@@ -19,8 +20,23 @@ struct CustomersView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Table(customers, selection: $selection) {
+        VStack(spacing: 0) {
+            FilterBar {
+                SearchField(text: $searchText, prompt: "姓名 / 电话", focusRequest: $searchPresented)
+                Spacer(minLength: Token.Space.s)
+                Text("由有效单据汇总")
+                    .font(Token.Typography.caption)
+                    .foregroundStyle(Token.Ink.tertiary)
+            }
+
+            table
+
+            TableFooter(leading: "共 \(customers.count) 位", trailing: footerTrailing)
+        }
+    }
+
+    private var table: some View {
+        Table(customers, selection: $selection) {
                 TableColumn("客户") { customer in
                     CellTitle(
                         title: customer.name,
@@ -66,9 +82,6 @@ struct CustomersView: View {
                 .width(min: 78, ideal: 88)
             }
             .tableStyle(.inset(alternatesRowBackgrounds: false))
-            .searchable(text: $searchText, prompt: "姓名 / 电话")
-        }
-        .navigationTitle("客户")
         .overlay {
             if customers.isEmpty {
                 EmptyState(
@@ -79,6 +92,11 @@ struct CustomersView: View {
                 .allowsHitTesting(false)
             }
         }
+    }
+
+    private var footerTrailing: String? {
+        guard let selection, let customer = customers.first(where: { $0.id == selection }) else { return nil }
+        return "\(customer.name) · 累计 \(customer.revenue.cny)"
     }
 }
 
@@ -97,50 +115,53 @@ struct CustomerDetailView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: Token.Space.m) {
-                SectionCard(title: "客户") {
-                    KeyValueRow(label: "姓名", value: customer.name)
-                    KeyValueRow(label: "电话", value: customer.contact)
-                    KeyValueRow(label: "最近购买", value: customer.lastPurchase.formatted(date: .numeric, time: .shortened))
-                }
+        VStack(spacing: 0) {
+            PanelHeader(title: "客户详情", subtitle: customer.contact.isEmpty ? customer.name : customer.contact)
 
-                SectionCard(title: "消费统计") {
-                    KeyValueRow(label: "累计消费", value: customer.revenue.cny)
-                    KeyValueRow(
-                        label: "累计毛利",
-                        value: customer.profit.signedCNY,
-                        valueTone: customer.profit < 0 ? .danger : .ok
-                    )
-                    KeyValueRow(label: "毛利率", value: customer.marginRate.map { "\(Money.text($0))%" } ?? "—")
-                    KeyValueRow(label: "单据数", value: "\(customer.orderCount) 张")
-                    KeyValueRow(label: "台数", value: "\(customer.machineCount) 台")
-                }
+            ScrollView {
+                VStack(spacing: 0) {
+                    PanelSection(title: "客户") {
+                        KeyValueRow(label: "姓名", value: customer.name)
+                        KeyValueRow(label: "电话", value: customer.contact)
+                        KeyValueRow(label: "最近购买", value: customer.lastPurchase.compactStamp)
+                    }
 
-                SectionCard(title: "历史单据") {
-                    ForEach(customerOrders) { order in
-                        HStack(spacing: Token.Space.s) {
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(order.number)
-                                    .font(Token.Typography.cellPrimary)
+                    PanelSection(title: "消费统计") {
+                        KeyValueRow(label: "累计消费", value: customer.revenue.cny)
+                        KeyValueRow(
+                            label: "累计毛利",
+                            value: customer.profit.signedCNY,
+                            valueTone: customer.profit < 0 ? .danger : .ok
+                        )
+                        KeyValueRow(label: "毛利率", value: customer.marginRate.map { "\(Money.text($0))%" } ?? "—")
+                        KeyValueRow(label: "单据数", value: "\(customer.orderCount) 张")
+                        KeyValueRow(label: "台数", value: "\(customer.machineCount) 台")
+                    }
+
+                    PanelSection(title: "历史单据", trailing: "\(customerOrders.count) 张") {
+                        ForEach(customerOrders) { order in
+                            HStack(spacing: Token.Space.s) {
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(order.number)
+                                        .font(Token.Typography.cellPrimary)
+                                        .foregroundStyle(Token.Ink.primary)
+                                        .monospaced()
+                                    Text(order.createdAt.compactStamp)
+                                        .font(Token.Typography.caption)
+                                        .foregroundStyle(Token.Ink.tertiary)
+                                }
+                                Spacer()
+                                Text(order.totalCNY.cny)
+                                    .font(Token.Typography.money)
                                     .foregroundStyle(Token.Ink.primary)
-                                    .monospaced()
-                                Text(order.createdAt.formatted(date: .numeric, time: .shortened))
-                                    .font(Token.Typography.caption)
-                                    .foregroundStyle(Token.Ink.tertiary)
+                                Badge(text: order.statusLabel, tone: order.tone, style: .filled)
                             }
-                            Spacer()
-                            Text(order.totalCNY.cny)
-                                .font(Token.Typography.money)
-                                .foregroundStyle(Token.Ink.primary)
-                            Badge(text: order.statusLabel, tone: order.tone, style: .filled)
+                            .padding(.vertical, 2)
                         }
-                        .padding(.vertical, 2)
                     }
                 }
             }
-            .padding(Token.Space.l)
         }
-        .background(Token.Surface.canvas)
+        .background(Token.Surface.card)
     }
 }

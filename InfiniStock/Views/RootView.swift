@@ -82,7 +82,6 @@ struct RootView: View {
                         .inspectorColumnWidth(min: 230, ideal: 270, max: 340)
                 }
         }
-        .toolbar { toolbarContent }
         .sheet(isPresented: $appState.showingIntake) { IntakeSheet() }
         .sheet(isPresented: $appState.showingImport) { ImportSheet() }
         .sheet(isPresented: $appState.showingSettings) {
@@ -138,18 +137,55 @@ struct RootView: View {
     // MARK: - 侧栏
 
     private var sidebar: some View {
-        SidebarView(selection: Binding(
-            get: { activeSection },
-            set: { section = $0 }
-        ))
+        SidebarView(
+            selection: Binding(
+                get: { activeSection },
+                set: { section = $0 }
+            ),
+            onSettings: { appState.showingSettings = true }
+        )
     }
 
     private func contentColumn(searchPresented: Binding<Bool>) -> some View {
         VStack(spacing: 0) {
-            PageHeader(title: activeSection.label, summary: pageSummary)
+            PageHeader(title: activeSection.label, items: headerItems) {
+                if activeSection.isStock {
+                    Button {
+                        appState.showingIntake = true
+                    } label: {
+                        Label("入库", systemImage: "plus")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .help("入库（⌘N）")
+
+                    Button {
+                        showingSale = true
+                    } label: {
+                        Label("出库", systemImage: "arrow.up.forward.square")
+                    }
+                    .controlSize(.small)
+                    .disabled(!canSell)
+                    .help("出库销售（⌘⇧S）")
+                }
+
+                Menu {
+                    Button("批量导入 CSV…") { appState.showingImport = true }
+                    Button("统计") { openWindow(id: "dashboard") }
+                    Divider()
+                    Button(showingInspector ? "隐藏检查器" : "显示检查器") {
+                        showingInspector.toggle()
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+            }
                 .padding(.horizontal, Token.Space.l)
                 .padding(.top, Token.Space.m)
-                .padding(.bottom, Token.Space.s)
+                .padding(.bottom, Token.Space.m)
 
             sectionBody(searchPresented: searchPresented)
                 .cardSurface()
@@ -168,38 +204,54 @@ struct RootView: View {
                 statusFilter: status,
                 selection: $itemSelection,
                 searchPresented: searchPresented,
+                onStatusChange: { section = .stock($0) },
                 onDeleteRequest: { pendingDelete = $0 }
             )
         case .orders:
-            OrdersView(selection: $orderSelection)
+            OrdersView(selection: $orderSelection, searchPresented: searchPresented)
         case .batches:
-            BatchesView(selection: $batchSelection)
+            BatchesView(selection: $batchSelection, searchPresented: searchPresented)
         case .customers:
-            CustomersView(selection: $customerSelection)
+            CustomersView(selection: $customerSelection, searchPresented: searchPresented)
         }
     }
 
-    /// 页面头右侧的一行摘要，口径与列表一致
-    private var pageSummary: String {
+    /// 页面头右侧摘要，口径与列表同源
+    private var headerItems: [PageHeaderSummary] {
         switch activeSection {
         case .stock(let status):
             let pool = allItems.filter { status == nil || $0.status == status }
             let cost = pool.reduce(Decimal(0)) { $0 + $1.landedCostCNY }
             let listed = pool.reduce(Decimal(0)) { $0 + $1.listPriceCNY }
-            return "共 \(pool.count) 台 · 成本 \(cost.cny) · 标价 \(listed.cny)"
+            return [
+                .init(label: status?.label ?? "全部", value: "\(pool.count) 台"),
+                .init(label: "成本", value: cost.cny),
+                .init(label: "标价", value: listed.cny),
+            ]
         case .orders:
             let valid = allOrders.filter { !$0.isVoided }
             let revenue = valid.reduce(Decimal(0)) { $0 + $1.totalCNY }
-            return "共 \(allOrders.count) 张 · 有效 \(valid.count) 张 · 应收 \(revenue.cny)"
+            let profit = valid.reduce(Decimal(0)) { $0 + $1.profitCNY }
+            return [
+                .init(label: "单据", value: "\(allOrders.count) 张"),
+                .init(label: "应收", value: revenue.cny),
+                .init(label: "毛利", value: profit.cny),
+            ]
         case .batches:
             let cost = allBatches.reduce(Decimal(0)) { total, batch in
                 total + batch.itemList.reduce(Decimal(0)) { $0 + $1.landedCostCNY }
             }
-            return "共 \(allBatches.count) 批 · 成本合计 \(cost.cny)"
+            return [
+                .init(label: "批次", value: "\(allBatches.count) 批"),
+                .init(label: "成本合计", value: cost.cny),
+            ]
         case .customers:
             let summaries = CustomerSummary.build(from: allOrders)
             let revenue = summaries.reduce(Decimal(0)) { $0 + $1.revenue }
-            return "共 \(summaries.count) 位 · 累计消费 \(revenue.cny)"
+            return [
+                .init(label: "客户", value: "\(summaries.count) 位"),
+                .init(label: "累计消费", value: revenue.cny),
+            ]
         }
     }
 
@@ -222,10 +274,11 @@ struct RootView: View {
             if itemSelection.count == 1, let item = selectedItems.first {
                 ItemDetailView(item: item)
             } else if itemSelection.count > 1 {
-                EmptyState(
+                DetailPlaceholder(
                     title: "已选中 \(itemSelection.count) 台",
                     message: "点工具栏「出库销售」批量处理，价格可逐台修改",
-                    systemImage: "square.stack.3d.up"
+                    systemImage: "square.stack.3d.up",
+                    subtitle: "多选"
                 )
             } else {
                 RecentItemsPanel(items: recentItems) { item in
@@ -236,57 +289,31 @@ struct RootView: View {
             if let order = selectedOrder {
                 OrderDetailView(order: order)
             } else {
-                EmptyState(title: "选择一张单据", message: "可查看明细、重出凭证或办理退货", systemImage: "doc.text")
+                DetailPlaceholder(
+                    title: "选择一张单据",
+                    message: "可查看明细、重出凭证或办理退货",
+                    systemImage: "doc.text"
+                )
             }
         case .batches:
             if let batch = selectedBatch {
                 BatchDetailView(batch: batch)
             } else {
-                EmptyState(title: "选择一个批次", message: "批次里锁定汇率与运费，逐台分摊", systemImage: "shippingbox.and.arrow.backward")
+                DetailPlaceholder(
+                    title: "选择一个批次",
+                    message: "批次里锁定汇率与运费，逐台分摊",
+                    systemImage: "shippingbox.and.arrow.backward"
+                )
             }
         case .customers:
             if let customer = selectedCustomer {
                 CustomerDetailView(customer: customer, orders: allOrders)
             } else {
-                EmptyState(title: "选择一位客户", message: "客户由单据自动汇总，无需单独建档", systemImage: "person.2")
-            }
-        }
-    }
-
-    // MARK: - 工具栏
-
-    @ToolbarContentBuilder
-    private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .primaryAction) {
-            Button {
-                appState.showingIntake = true
-            } label: {
-                Label("入库", systemImage: "plus")
-            }
-            .disabled(!activeSection.isStock)
-            .help("入库（⌘N）")
-        }
-
-        ToolbarItem(placement: .primaryAction) {
-            Button {
-                showingSale = true
-            } label: {
-                Label("出库销售", systemImage: "arrow.up.forward.square")
-            }
-            .disabled(!canSell)
-            .help("出库销售（⌘⇧S）")
-        }
-
-        ToolbarItem(placement: .primaryAction) {
-            Menu {
-                Button("批量导入 CSV…") { appState.showingImport = true }
-                Button("统计") { openWindow(id: "dashboard") }
-                Divider()
-                Button(showingInspector ? "隐藏检查器" : "显示检查器") {
-                    showingInspector.toggle()
-                }
-            } label: {
-                Label("更多", systemImage: "ellipsis.circle")
+                DetailPlaceholder(
+                    title: "选择一位客户",
+                    message: "客户由单据自动汇总，无需单独建档",
+                    systemImage: "person.2"
+                )
             }
         }
     }

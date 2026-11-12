@@ -4,6 +4,7 @@ import SwiftData
 /// 批次列表。模型一直存在，此前没有页面可看，现在补上。
 struct BatchesView: View {
     @Binding var selection: PersistentIdentifier?
+    @Binding var searchPresented: Bool
     @Environment(\.modelContext) private var modelContext
     @State private var searchText = ""
     @State private var showingNewBatch = false
@@ -11,6 +12,29 @@ struct BatchesView: View {
     @Query(sort: \Batch.createdAt, order: .reverse) private var batches: [Batch]
 
     var body: some View {
+        VStack(spacing: 0) {
+            FilterBar {
+                SearchField(text: $searchText, prompt: "批次 / 供应商", focusRequest: $searchPresented)
+                Spacer(minLength: Token.Space.s)
+                Button {
+                    showingNewBatch = true
+                } label: {
+                    Label("新建批次", systemImage: "plus")
+                        .font(Token.Typography.caption)
+                }
+                .buttonStyle(.borderless)
+            }
+
+            table
+
+            TableFooter(leading: "共 \(filtered.count) 批", trailing: footerTrailing)
+        }
+        .sheet(isPresented: $showingNewBatch) {
+            BatchSheet()
+        }
+    }
+
+    private var table: some View {
         Table(filtered, selection: $selection) {
             TableColumn("批次") { batch in
                 CellTitle(
@@ -50,17 +74,6 @@ struct BatchesView: View {
 
         }
         .tableStyle(.inset(alternatesRowBackgrounds: false))
-            .searchable(text: $searchText, prompt: "批次 / 供应商")
-        .navigationTitle("批次")
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    showingNewBatch = true
-                } label: {
-                    Label("新建批次", systemImage: "plus")
-                }
-            }
-        }
         .overlay {
             if filtered.isEmpty {
                 EmptyState(
@@ -71,9 +84,12 @@ struct BatchesView: View {
                 .allowsHitTesting(false)
             }
         }
-        .sheet(isPresented: $showingNewBatch) {
-            BatchSheet()
-        }
+    }
+
+    private var footerTrailing: String? {
+        guard let selection, let batch = batches.first(where: { $0.id == selection }) else { return nil }
+        let cost = batch.itemList.reduce(Decimal(0)) { $0 + $1.landedCostCNY }
+        return "\(batch.name) · 成本 \(cost.cny)"
     }
 
     private var filtered: [Batch] {
@@ -94,51 +110,54 @@ struct BatchDetailView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: Token.Space.m) {
-                SectionCard(title: "批次") {
-                    KeyValueRow(label: "名称", value: batch.name)
-                    KeyValueRow(label: "供应商", value: batch.supplier)
-                    KeyValueRow(label: "创建", value: batch.createdAt.formatted(date: .numeric, time: .shortened))
-                    KeyValueRow(label: "分摊方式", value: batch.allocation.rawValue)
-                }
+        VStack(spacing: 0) {
+            PanelHeader(title: "批次详情", subtitle: batch.name)
 
-                SectionCard(title: "成本口径") {
-                    KeyValueRow(label: "币种", value: batch.currency.rawValue)
-                    KeyValueRow(label: "锁定汇率", value: Money.text(batch.exchangeRate))
-                    KeyValueRow(label: "总运费", value: batch.totalShippingCNY.cny)
-                    KeyValueRow(label: "已分摊", value: items.reduce(Decimal(0)) { $0 + $1.shippingCNY }.cny)
-                    KeyValueRow(
-                        label: "成本合计",
-                        value: items.reduce(Decimal(0)) { $0 + $1.landedCostCNY }.cny
-                    )
-                }
-
-                SectionCard(title: "机器（\(items.count) 台）") {
-                    if items.isEmpty {
-                        Text("这一批还没有机器")
-                            .font(Token.Typography.caption)
-                            .foregroundStyle(Token.Ink.secondary)
+            ScrollView {
+                VStack(spacing: 0) {
+                    PanelSection(title: "批次") {
+                        KeyValueRow(label: "名称", value: batch.name)
+                        KeyValueRow(label: "供应商", value: batch.supplier)
+                        KeyValueRow(label: "创建", value: batch.createdAt.compactStamp)
+                        KeyValueRow(label: "分摊方式", value: batch.allocation.rawValue)
                     }
-                    ForEach(items) { item in
-                        HStack(spacing: Token.Space.s) {
-                            CellTitle(title: item.modelName, subtitle: item.serialNumber)
-                            Spacer()
-                            Text(item.landedCostCNY.cny)
-                                .font(Token.Typography.money)
-                                .foregroundStyle(Token.Ink.primary)
-                            Badge(
-                                text: item.status.label,
-                                tone: item.status.tone,
-                                style: item.status == .inStock ? .outline : .filled
-                            )
+
+                    PanelSection(title: "成本口径") {
+                        KeyValueRow(label: "币种", value: batch.currency.rawValue)
+                        KeyValueRow(label: "锁定汇率", value: Money.text(batch.exchangeRate))
+                        KeyValueRow(label: "总运费", value: batch.totalShippingCNY.cny)
+                        KeyValueRow(label: "已分摊", value: items.reduce(Decimal(0)) { $0 + $1.shippingCNY }.cny)
+                        KeyValueRow(
+                            label: "成本合计",
+                            value: items.reduce(Decimal(0)) { $0 + $1.landedCostCNY }.cny
+                        )
+                    }
+
+                    PanelSection(title: "机器", trailing: "\(items.count) 台") {
+                        if items.isEmpty {
+                            Text("这一批还没有机器")
+                                .font(Token.Typography.caption)
+                                .foregroundStyle(Token.Ink.secondary)
                         }
-                        .padding(.vertical, 2)
+                        ForEach(items) { item in
+                            HStack(spacing: Token.Space.s) {
+                                CellTitle(title: item.modelName, subtitle: item.serialNumber)
+                                Spacer()
+                                Text(item.landedCostCNY.cny)
+                                    .font(Token.Typography.money)
+                                    .foregroundStyle(Token.Ink.primary)
+                                Badge(
+                                    text: item.status.label,
+                                    tone: item.status.tone,
+                                    style: item.status == .inStock ? .outline : .filled
+                                )
+                            }
+                            .padding(.vertical, 2)
+                        }
                     }
                 }
             }
-            .padding(Token.Space.l)
         }
-        .background(Token.Surface.canvas)
+        .background(Token.Surface.card)
     }
 }

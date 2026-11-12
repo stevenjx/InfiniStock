@@ -13,39 +13,48 @@ struct ItemDetailView: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        ScrollView {
-            ItemDetailContent(item: item)
-                .padding(Token.Space.l)
-        }
-        .background(Token.Surface.canvas)
-        .toolbar {
-            if item.status == .inStock {
-                ToolbarItem(placement: .primaryAction) {
+        VStack(spacing: 0) {
+            PanelHeader(title: "详情") {
+                Badge(
+                    text: item.status.label,
+                    tone: item.status.tone,
+                    style: item.status == .inStock ? .outline : .filled
+                )
+            }
+
+            ScrollView {
+                ItemDetailContent(item: item)
+                    .padding(Token.Space.m)
+            }
+
+            PanelFooter {
+                if item.status == .inStock {
                     Button("出库销售") { showingSale = true }
-                        .keyboardShortcut("s", modifiers: [.command, .shift])
+                        .buttonStyle(.borderedProminent)
                 }
-                ToolbarItem(placement: .primaryAction) {
-                    Menu {
+                if item.order != nil {
+                    Button("销售凭证") { showingReceipt = true }
+                }
+                Spacer(minLength: 0)
+                Menu {
+                    if item.status == .inStock {
                         Button("删除这台（误录入）…", role: .destructive) {
                             showingDeleteConfirm = true
                         }
-                    } label: {
-                        Label("更多", systemImage: "ellipsis.circle")
                     }
-                }
-            }
-            if item.order != nil {
-                ToolbarItem(placement: .primaryAction) {
-                    Menu {
-                        Button("销售凭证") { showingReceipt = true }
-                        Divider()
+                    if item.order != nil {
                         Button("撤销单据", role: .destructive) { showingVoidConfirm = true }
-                    } label: {
-                        Label("单据", systemImage: "doc.text")
                     }
+                } label: {
+                    Label("更多", systemImage: "ellipsis")
                 }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
             }
         }
+        .background(Token.Surface.card)
+        .navigationTitle("")
         .sheet(isPresented: $showingSale) {
             SaleSheet(items: [item])
         }
@@ -113,19 +122,19 @@ struct ItemDetailContent: View {
     let item: Item
 
     var body: some View {
-        VStack(spacing: Token.Space.m) {
+        VStack(spacing: 0) {
             header
 
-            SectionCard(title: "机器") {
+            PanelSection(title: "机器") {
                 KeyValueRow(label: "芯片", value: item.chip)
                 KeyValueRow(label: "内存", value: item.memory)
                 KeyValueRow(label: "存储", value: item.storage)
                 KeyValueRow(label: "颜色", value: item.color)
                 KeyValueRow(label: "成色", value: item.condition.rawValue)
-                KeyValueRow(label: "入库时间", value: item.inboundAt.formatted(date: .numeric, time: .shortened))
+                KeyValueRow(label: "入库时间", value: item.inboundAt.compactStamp)
             }
 
-            SectionCard(title: "成本") {
+            PanelSection(title: "成本") {
                 KeyValueRow(label: "进价", value: "\(Money.text(item.costAmount)) \(item.currency.rawValue)")
                 KeyValueRow(label: "汇率", value: Money.text(item.exchangeRate))
                 KeyValueRow(label: "运费", value: item.shippingCNY.cny)
@@ -135,7 +144,7 @@ struct ItemDetailContent: View {
                 }
             }
 
-            SectionCard(title: "价格") {
+            PanelSection(title: "价格") {
                 KeyValueRow(label: "标价", value: item.listPriceCNY.cny)
                 if item.status == .sold {
                     KeyValueRow(label: "成交价", value: item.soldPriceCNY.cny)
@@ -155,14 +164,14 @@ struct ItemDetailContent: View {
             }
 
             if let order = item.order {
-                SectionCard(title: "单据") {
+                PanelSection(title: "单据") {
                     KeyValueRow(label: "单号", value: order.number)
                     KeyValueRow(label: "客户", value: order.customerName)
                     KeyValueRow(label: "联系方式", value: order.customerContact)
                     KeyValueRow(label: "收款方式", value: order.paymentMethod.rawValue)
                     KeyValueRow(
                         label: "出库时间",
-                        value: (item.soldAt ?? order.createdAt).formatted(date: .numeric, time: .shortened)
+                        value: (item.soldAt ?? order.createdAt).compactStamp
                     )
                     if order.hasReturns {
                         KeyValueRow(label: "售后", value: "本单已退 \(order.returnedCount) 台", valueTone: .warn)
@@ -170,7 +179,7 @@ struct ItemDetailContent: View {
                 }
             }
 
-            SectionCard(title: "实物照片") {
+            PanelSection(title: "实物照片") {
                 PhotoField(item: item)
             }
         }
@@ -205,13 +214,9 @@ struct ItemDetailContent: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(Token.Space.l)
+        .padding(Token.Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Token.Surface.card, in: .rect(cornerRadius: Token.Radius.card))
-        .overlay {
-            RoundedRectangle(cornerRadius: Token.Radius.card)
-                .strokeBorder(Token.Border.hairline, lineWidth: 1)
-        }
+        .overlay(alignment: .bottom) { Hairline() }
     }
 
     @ViewBuilder

@@ -9,16 +9,27 @@ enum Token {
         static let card = Color("SurfaceCard")
         static let sidebar = Color("SurfaceSidebar")
         static let selected = Color("SurfaceSelected")
+        /// 卡片内的工具条、表头、页脚，比卡片本身略沉一档
+        static let header = Color("SurfaceHeader")
+        /// 输入框、未选中的胶囊
+        static let field = Color("SurfaceField")
     }
 
     enum Ink {
         static let primary = Color("TextPrimary")
         static let secondary = Color("TextSecondary")
         static let tertiary = Color("TextTertiary")
+        /// 实心强调色上的文字
+        static let onAccent = Color("TextOnAccent")
     }
 
     enum Border {
         static let hairline = Color("BorderHairline")
+    }
+
+    enum Shadow {
+        /// 卡片投影：浅色下极轻，深色下靠不透明度拉开层次
+        static let card = Color("ShadowCard")
     }
 
     enum Accent {
@@ -51,6 +62,8 @@ enum Token {
     }
 
     enum Typography {
+        /// 页面大标题
+        static let screenTitle = Font.system(size: 25, weight: .bold)
         static let pageTitle = Font.system(size: 22, weight: .semibold)
         static let cardTitle = Font.system(size: 13, weight: .semibold)
         static let body = Font.system(size: 13)

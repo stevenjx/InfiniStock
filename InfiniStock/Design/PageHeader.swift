@@ -1,26 +1,55 @@
 import SwiftUI
 
-/// 页面头：左侧大标题，右侧一行灰色统计摘要。
-/// 参考图的"高级感"主要来自这一层，而不是单元格里的胶囊。
-struct PageHeader: View {
+/// 页面头：左侧大标题，右侧一组「标签 + 数值」摘要。
+/// 参考图里这一行是页面层级的第一层，比表格本身更能定调。
+struct PageHeaderSummary: Identifiable {
+    let label: String
+    let value: String
+    var id: String { label }
+}
+
+struct PageHeader<Actions: View>: View {
     let title: String
-    var summary: String?
+    var items: [PageHeaderSummary] = []
+    @ViewBuilder var actions: Actions
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: Token.Space.m) {
+        HStack(alignment: .center, spacing: Token.Space.l) {
             Text(title)
-                .font(Token.Typography.pageTitle)
+                .font(Token.Typography.screenTitle)
                 .foregroundStyle(Token.Ink.primary)
-            Spacer(minLength: Token.Space.s)
-            if let summary, !summary.isEmpty {
-                Text(summary)
-                    .font(Token.Typography.caption)
-                    .foregroundStyle(Token.Ink.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .monospacedDigit()
+
+            Spacer(minLength: Token.Space.m)
+
+            HStack(spacing: 6) {
+                ForEach(Array(items.enumerated()), id: \.offset) { index, item in
+                    if index > 0 {
+                        Text("·")
+                            .foregroundStyle(Token.Ink.tertiary)
+                    }
+                    Text(item.label)
+                        .foregroundStyle(Token.Ink.tertiary)
+                    Text(item.value)
+                        .foregroundStyle(Token.Ink.primary)
+                        .monospacedDigit()
+                }
+            }
+            .font(Token.Typography.caption)
+            .lineLimit(1)
+
+            if Actions.self != EmptyView.self {
+                HStack(spacing: Token.Space.s) {
+                    actions
+                }
+                .padding(.leading, Token.Space.xs)
             }
         }
+    }
+}
+
+extension PageHeader where Actions == EmptyView {
+    init(title: String, items: [PageHeaderSummary] = []) {
+        self.init(title: title, items: items) { EmptyView() }
     }
 }
 
@@ -37,6 +66,7 @@ struct CardSurface: ViewModifier {
                 RoundedRectangle(cornerRadius: Token.Radius.card)
                     .strokeBorder(Token.Border.hairline, lineWidth: 1)
             }
+            .shadow(color: Token.Shadow.card, radius: 6, y: 2)
     }
 }
 
@@ -64,5 +94,21 @@ struct SectionHeading: View {
                     .foregroundStyle(Token.Ink.tertiary)
             }
         }
+    }
+}
+
+/// 右栏未选中时的占位：保持与详情一致的面板结构，不出现空洞。
+struct DetailPlaceholder: View {
+    let title: String
+    let message: String
+    var systemImage: String
+    var subtitle: String = "未选择"
+
+    var body: some View {
+        VStack(spacing: 0) {
+            PanelHeader(title: "详情", subtitle: subtitle)
+            EmptyState(title: title, message: message, systemImage: systemImage)
+        }
+        .background(Token.Surface.card)
     }
 }
