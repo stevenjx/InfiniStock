@@ -53,7 +53,9 @@ struct PhotoField: View {
             guard let provider = providers.first else { return false }
             _ = provider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { data, _ in
                 guard let data else { return }
-                persist(ImageScaler.downscaledJPEG(data))
+                let jpeg = ImageScaler.downscaledJPEG(data)
+                // 这个回调在后台线程，而 persist 要改 @State，必须回主线程
+                Task { @MainActor in persist(jpeg) }
             }
             return true
         }

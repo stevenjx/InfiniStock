@@ -25,10 +25,4 @@ enum MacCatalog {
         MacPreset(modelName: "MacBook Pro 16\" M3 Pro", chip: "M3 Pro", memory: "18GB", storage: "512GB"),
         MacPreset(modelName: "MacBook Pro 16\" M1 Max", chip: "M1 Max", memory: "32GB", storage: "1TB"),
     ]
-
-    /// 芯片筛选用：从目录里取出不重复的芯片，保证顺序稳定
-    static var chips: [String] {
-        var seen: Set<String> = []
-        return presets.compactMap { seen.insert($0.chip).inserted ? $0.chip : nil }
-    }
 }

@@ -20,16 +20,6 @@ struct TodosKpiStrip: View {
         Set(entries.map(\.kind)).count
     }
 
-    private var pendingShipping: Decimal {
-        batches
-            .filter { $0.stage == .pending }
-            .reduce(Decimal(0)) { $0 + ($1.totalShipping - $1.allocatedShipping) }
-    }
-
-    private var pendingBatchCount: Int {
-        batches.filter { $0.stage == .pending }.count
-    }
-
     var body: some View {
         HStack(spacing: Token.Space.m) {
             StatCard(

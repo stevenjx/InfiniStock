@@ -61,10 +61,6 @@ struct InventoryStatistics {
         dailyPoints.count >= 2 ? dailyPoints[dailyPoints.count - 2].revenue : 0
     }
 
-    var yesterdayProfit: Decimal {
-        dailyPoints.count >= 2 ? dailyPoints[dailyPoints.count - 2].profit : 0
-    }
-
     /// 近 N 天合计，用于图表下方摘要
     func summary(days: Int) -> (revenue: Decimal, profit: Decimal) {
         let slice = dailyPoints.suffix(days)

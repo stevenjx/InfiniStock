@@ -160,6 +160,24 @@ struct ItemDetailContent: View {
                 if let batch = item.batch {
                     KeyValueRow(label: "批次", value: batch.name)
                 }
+                // 汇率风险落到具体数字：标价换回人民币刚好回本的那个汇率，
+                // 和今天的汇率一比，就知道这台机器现在结汇是赚是亏。
+                if let breakEven = item.breakEvenRate {
+                    KeyValueRow(
+                        label: "回本汇率",
+                        value: Money.text(breakEven),
+                        valueTone: breakEvenTone(breakEven)
+                    )
+                    let current = ShopSettings.load().defaultExchangeRate
+                    let loss = item.currencyLoss(at: current)
+                    if loss > 0 {
+                        KeyValueRow(
+                            label: "结汇亏损",
+                            value: "−\(loss.cny)",
+                            valueTone: .danger
+                        )
+                    }
+                }
             }
 
             PanelSection(title: "价格") {
@@ -270,7 +288,7 @@ struct ItemDetailContent: View {
     }
 
     /// 当前汇率高于回本汇率 = 按今天结汇是亏的
-    private func breakEvenTone(_ item: Item, _ breakEven: Decimal) -> Tone? {
+    private func breakEvenTone(_ breakEven: Decimal) -> Tone? {
         let current = ShopSettings.load().defaultExchangeRate
         guard current > 0 else { return nil }
         return current > breakEven ? .danger : .ok

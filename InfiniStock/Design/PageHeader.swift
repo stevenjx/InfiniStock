@@ -78,26 +78,6 @@ extension View {
     }
 }
 
-/// 分节标题（页面内的二级标题，与卡片标题区分）
-struct SectionHeading: View {
-    let text: String
-    var trailing: String?
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(text)
-                .font(Token.Typography.cardTitle)
-                .foregroundStyle(Token.Ink.secondary)
-            Spacer()
-            if let trailing {
-                Text(trailing)
-                    .font(Token.Typography.caption)
-                    .foregroundStyle(Token.Ink.tertiary)
-            }
-        }
-    }
-}
-
 /// 右栏未选中时的占位：保持与详情一致的面板结构，不出现空洞。
 struct DetailPlaceholder: View {
     let title: String

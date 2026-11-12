@@ -146,10 +146,6 @@ final class Item {
     /// 超过该循环次数视为电池损耗明显
     static let highCycles = 800
 
-    var hasBatteryData: Bool {
-        batteryHealth > 0 || batteryCycles > 0
-    }
-
     /// 健康度偏低或循环次数偏高——二手 MacBook 的主要压价理由
     var isBatteryWeak: Bool {
         (batteryHealth > 0 && batteryHealth < Self.weakHealth) || batteryCycles >= Self.highCycles

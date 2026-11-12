@@ -1011,7 +1011,7 @@ struct Verify {
         try OrderService.void(voided, in: dash)
 
         // 一台成本高于标价（用于低于成本告警）
-        let overCost = dashItem("DSH4", cost: 9000, list: 5000)
+        _ = dashItem("DSH4", cost: 9000, list: 5000)
         // 一台超期
         let stale = dashItem("DSH5", cost: 1500, list: 2500)
         stale.inboundAt = Calendar.current.date(byAdding: .day, value: -120, to: .now) ?? .now
