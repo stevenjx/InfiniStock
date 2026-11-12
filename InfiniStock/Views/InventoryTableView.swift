@@ -68,6 +68,7 @@ struct InventoryTableView: View {
                 TableRow(item)
             }
         }
+        .tableStyle(.inset(alternatesRowBackgrounds: false))
         .searchable(text: $searchText, isPresented: $searchPresented, prompt: "序列号 / 型号 / 客户")
         .onDeleteCommand {
             let chosen = rows.filter { selection.contains($0.id) }

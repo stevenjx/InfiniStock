@@ -93,6 +93,7 @@ struct OrdersView: View {
                 }
                 .width(min: 74, ideal: 84)
             }
+            .tableStyle(.inset(alternatesRowBackgrounds: false))
             .searchable(text: $searchText, prompt: "单号 / 客户 / 序列号")
             .overlay {
                 if filtered.isEmpty {

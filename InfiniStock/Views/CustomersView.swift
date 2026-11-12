@@ -65,6 +65,7 @@ struct CustomersView: View {
                 }
                 .width(min: 92, ideal: 104)
             }
+            .tableStyle(.inset(alternatesRowBackgrounds: false))
             .searchable(text: $searchText, prompt: "姓名 / 电话")
         }
         .navigationTitle("客户")

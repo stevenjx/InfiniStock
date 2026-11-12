@@ -60,7 +60,8 @@ struct BatchesView: View {
             }
             .width(min: 84, ideal: 96)
         }
-        .searchable(text: $searchText, prompt: "批次 / 供应商")
+        .tableStyle(.inset(alternatesRowBackgrounds: false))
+            .searchable(text: $searchText, prompt: "批次 / 供应商")
         .navigationTitle("批次")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
