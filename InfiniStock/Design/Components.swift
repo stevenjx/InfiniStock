@@ -26,6 +26,7 @@ struct Badge: View {
                 }
             }
             .fixedSize()
+            .accessibilityLabel(Text("\(text)，\(tone.accessibilityName)"))
     }
 }
 
@@ -49,6 +50,7 @@ struct CellTitle: View {
                     .monospaced(monospacedSubtitle)
             }
         }
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -94,6 +96,8 @@ struct StatCard: View {
             RoundedRectangle(cornerRadius: Token.Radius.card)
                 .strokeBorder(Token.Border.hairline, lineWidth: 1)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(Text("\(title)，\(value)\(delta.map { "，" + $0 } ?? "")"))
     }
 }
 
@@ -173,6 +177,8 @@ struct AlertCard: View {
         .padding(Token.Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(tone.fill, in: .rect(cornerRadius: Token.Radius.card))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(Text("\(title)。\(message)"))
     }
 }
 
@@ -197,5 +203,7 @@ struct EmptyState: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(Token.Space.xl)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(Text("\(title)。\(message)"))
     }
 }

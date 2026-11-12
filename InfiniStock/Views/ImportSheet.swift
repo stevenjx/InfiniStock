@@ -30,7 +30,7 @@ struct ImportSheet: View {
                     }
                     Text("首行须为表头，至少包含「序列号」「型号」。可先导出一份 CSV 作为模板。「进价」为必填列；其余金额列留空按 0 处理，汇率留空按 1 处理。")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Token.Ink.secondary)
                 }
 
                 if let preview {
@@ -49,7 +49,7 @@ struct ImportSheet: View {
                                     Text("第 \(issue.line) 行")
                                         .font(.caption)
                                         .monospacedDigit()
-                                        .foregroundStyle(.red)
+                                        .foregroundStyle(Token.Status.danger)
                                         .frame(width: 62, alignment: .leading)
                                     Text("\(issue.field)：\(issue.reason)")
                                         .font(.caption)
@@ -58,7 +58,7 @@ struct ImportSheet: View {
                             if preview.issues.count > 50 {
                                 Text("另有 \(preview.issues.count - 50) 条未显示")
                                     .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Token.Ink.secondary)
                             }
                             Button {
                                 exportIssues(preview.issues)
@@ -77,7 +77,7 @@ struct ImportSheet: View {
                         }
                         Text("导入的机器会按该批次的汇率与运费分摊规则重算落地成本。")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Token.Ink.secondary)
                     }
 
                     Section {
@@ -90,7 +90,7 @@ struct ImportSheet: View {
                         if let resultMessage {
                             Label(resultMessage, systemImage: "checkmark.circle")
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Token.Ink.secondary)
                         }
                     }
                 }

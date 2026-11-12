@@ -42,7 +42,7 @@ struct BatchSheet: View {
                 Section {
                     Text("汇率锁定后，本批所有机器的成本都按该汇率折算，不受后续汇率波动影响。运费分摊的尾差由最后一台吸收，保证合计精确。")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Token.Ink.secondary)
                 }
             }
             .formStyle(.grouped)

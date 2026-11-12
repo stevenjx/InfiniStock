@@ -89,6 +89,17 @@ enum Tone {
         }
     }
 
+    /// VoiceOver 朗读时说明颜色含义，避免"只靠颜色传达状态"
+    var accessibilityName: String {
+        switch self {
+        case .brand: "进行中"
+        case .ok: "正常"
+        case .warn: "需要留意"
+        case .danger: "异常"
+        case .neutral: "已结束"
+        }
+    }
+
     var icon: String {
         switch self {
         case .brand: "info.circle.fill"

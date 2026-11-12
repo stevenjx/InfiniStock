@@ -64,7 +64,7 @@ struct IntakeSheet: View {
                 Section {
                     Text("序列号会按大写去空格后查重，重复录入将被拦截。")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Token.Ink.secondary)
                 }
             }
             .formStyle(.grouped)

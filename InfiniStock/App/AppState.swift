@@ -8,5 +8,7 @@ final class AppState {
     var showingSearch = false
     var showingSettings = false
     var showingImport = false
+    /// 分区快捷键（⌘1–⌘4）请求；由 RootView 消费
+    var sectionRequest: SidebarSection?
     var showingDashboard = false
 }

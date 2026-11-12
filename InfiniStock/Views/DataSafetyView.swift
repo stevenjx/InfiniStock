@@ -36,7 +36,7 @@ struct DataSafetyView: View {
                 }
                 Text("JSON 可回灌恢复，含照片；CSV 只用于查看与对账。")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Token.Ink.secondary)
             }
 
             Section("自动备份") {
@@ -50,7 +50,7 @@ struct DataSafetyView: View {
                 LabeledContent("最近备份") {
                     Text(lastBackupAt.map { $0.formatted(date: .numeric, time: .shortened) } ?? "尚无")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Token.Ink.secondary)
                 }
                 Button("选择备份目录…") { choosingFolder = true }
                 if backupFolder != nil {
@@ -58,7 +58,7 @@ struct DataSafetyView: View {
                 }
                 Text("每天首次启动自动备份一次，保留最近 \(BackupService.retentionCount) 份。目录由你在系统面板中授权，App 之后才能持续写入。")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Token.Ink.secondary)
             }
 
             Section("恢复") {
@@ -69,13 +69,13 @@ struct DataSafetyView: View {
                 }
                 Text("恢复会清空当前全部数据再写入备份内容，需要系统身份验证。建议先导出一份当前数据。")
                     .font(.caption)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Token.Status.warn)
             }
 
             if let message {
                 Section {
                     Label(message, systemImage: "checkmark.circle")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Token.Ink.secondary)
                 }
             }
         }

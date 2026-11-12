@@ -58,16 +58,16 @@ struct SaleSheet: View {
                                 Text(item.serialNumber)
                                     .font(.caption)
                                     .monospaced()
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Token.Ink.secondary)
                                 Spacer()
                                 Text("标价 \(item.listPriceCNY.cny)")
                                     .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Token.Ink.secondary)
                             }
                             HStack {
                                 Text("成交价")
                                     .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Token.Ink.secondary)
                                 TextField("成交价", text: binding(for: item))
                                     .decimalKeyboard()
                                     .multilineTextAlignment(.trailing)
@@ -103,26 +103,26 @@ struct SaleSheet: View {
                         Spacer()
                         Text(payable.cny)
                             .fontWeight(.semibold)
-                            .foregroundStyle(payable < 0 ? Color.orange : Color.primary)
+                            .foregroundStyle(payable < 0 ? Token.Status.danger : Token.Ink.primary)
                     }
                     HStack {
-                        Text("大写").font(.caption).foregroundStyle(.secondary)
+                        Text("大写").font(.caption).foregroundStyle(Token.Ink.secondary)
                         Spacer()
                         Text(ChineseAmount.uppercase(payable))
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Token.Ink.secondary)
                     }
                 }
 
                 Section("预估毛利") {
                     LabeledContent("毛利") {
                         Text(profit.cny)
-                            .foregroundStyle(profit < 0 ? Color.orange : Color.primary)
+                            .foregroundStyle(profit < 0 ? Token.Status.danger : Token.Ink.primary)
                     }
                     if profit < 0 {
                         Text("低于总成本，确认前请复核成交价与折扣")
                             .font(.caption)
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(Token.Status.warn)
                     }
                 }
             }

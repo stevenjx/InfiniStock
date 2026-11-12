@@ -29,7 +29,7 @@ struct SettingsView: View {
                 if let savedMessage {
                     Label(savedMessage, systemImage: "checkmark.circle")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Token.Ink.secondary)
                 }
             }
 
@@ -41,7 +41,7 @@ struct SettingsView: View {
                 }
                 Text("导出、备份目录、恢复。建议每周至少确认一次备份目录可用。")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Token.Ink.secondary)
             }
         }
         .formStyle(.grouped)

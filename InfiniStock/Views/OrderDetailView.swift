@@ -31,7 +31,7 @@ struct OrderDetailView: View {
                 }
                 LabeledContent("毛利") {
                     Text(order.profitCNY.cny)
-                        .foregroundStyle(order.profitCNY < 0 ? Color.orange : Color.primary)
+                        .foregroundStyle(order.profitCNY < 0 ? Token.Status.danger : Token.Ink.primary)
                 }
                 if order.hasReturns {
                     LabeledContent("已退货", value: "\(order.returnedCount) 台 · 退回 \(order.returnedAmountCNY.cny)")
@@ -40,7 +40,7 @@ struct OrderDetailView: View {
 
             Section("机器（\(order.itemList.count) 台）") {
                 if order.itemList.isEmpty {
-                    Text("此单机器已全部退回").foregroundStyle(.secondary)
+                    Text("此单机器已全部退回").foregroundStyle(Token.Ink.secondary)
                 }
                 ForEach(order.itemList.sorted { $0.serialNumber < $1.serialNumber }) { item in
                     HStack {
@@ -49,7 +49,7 @@ struct OrderDetailView: View {
                             Text(item.serialNumber)
                                 .font(.caption)
                                 .monospaced()
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Token.Ink.secondary)
                         }
                         Spacer()
                         Text(item.soldPriceCNY.cny).monospacedDigit()
@@ -129,12 +129,12 @@ struct ReturnSheet: View {
                                     Text(item.serialNumber)
                                         .font(.caption)
                                         .monospaced()
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(Token.Ink.secondary)
                                 }
                                 Spacer()
                                 Text(item.soldPriceCNY.cny)
                                     .monospacedDigit()
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Token.Ink.secondary)
                             }
                         }
                         .toggleStyle(.checkbox)
@@ -147,11 +147,11 @@ struct ReturnSheet: View {
                     if selected.count == order.itemList.count {
                         Text("全部退回后单据将标记为已全退，库存全部恢复。")
                             .font(.caption)
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(Token.Status.warn)
                     } else if !selected.isEmpty {
                         Text("折扣与抹零按剩余货值比例保留，退货部分连同折扣一起退回。")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Token.Ink.secondary)
                     }
                 }
             }

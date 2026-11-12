@@ -97,6 +97,11 @@ struct RootView: View {
                 appState.showingDashboard = false
             }
         }
+        .onChange(of: appState.sectionRequest) { _, request in
+            guard let request else { return }
+            section = request
+            appState.sectionRequest = nil
+        }
         .onChange(of: showingSale) { _, isPresented in
             if !isPresented { itemSelection.removeAll() }
         }
