@@ -75,7 +75,6 @@ struct RootView: View {
         } content: {
             contentColumn(searchPresented: $appState.showingSearch)
                 .navigationSplitViewColumnWidth(min: 480, ideal: 720)
-                .navigationTitle(activeSection.label)
         } detail: {
             detailPane
                 .inspector(isPresented: $showingInspector) {
@@ -165,8 +164,24 @@ struct RootView: View {
 
     // MARK: - 中列
 
-    @ViewBuilder
     private func contentColumn(searchPresented: Binding<Bool>) -> some View {
+        VStack(spacing: 0) {
+            PageHeader(title: activeSection.label, summary: pageSummary)
+                .padding(.horizontal, Token.Space.l)
+                .padding(.top, Token.Space.m)
+                .padding(.bottom, Token.Space.s)
+
+            sectionBody(searchPresented: searchPresented)
+                .cardSurface()
+                .padding(.horizontal, Token.Space.l)
+                .padding(.bottom, Token.Space.l)
+        }
+        .background(Token.Surface.canvas)
+        .navigationTitle("")
+    }
+
+    @ViewBuilder
+    private func sectionBody(searchPresented: Binding<Bool>) -> some View {
         switch activeSection {
         case .stock(let status):
             InventoryTableView(
@@ -184,6 +199,40 @@ struct RootView: View {
         }
     }
 
+    /// 页面头右侧的一行摘要，口径与列表一致
+    private var pageSummary: String {
+        switch activeSection {
+        case .stock(let status):
+            let pool = allItems.filter { status == nil || $0.status == status }
+            let cost = pool.reduce(Decimal(0)) { $0 + $1.landedCostCNY }
+            let listed = pool.reduce(Decimal(0)) { $0 + $1.listPriceCNY }
+            return "共 \(pool.count) 台 · 成本 \(cost.cny) · 标价 \(listed.cny)"
+        case .orders:
+            let valid = allOrders.filter { !$0.isVoided }
+            let revenue = valid.reduce(Decimal(0)) { $0 + $1.totalCNY }
+            return "共 \(allOrders.count) 张 · 有效 \(valid.count) 张 · 应收 \(revenue.cny)"
+        case .batches:
+            let cost = allBatches.reduce(Decimal(0)) { total, batch in
+                total + batch.itemList.reduce(Decimal(0)) { $0 + $1.landedCostCNY }
+            }
+            return "共 \(allBatches.count) 批 · 成本合计 \(cost.cny)"
+        case .customers:
+            let summaries = CustomerSummary.build(from: allOrders)
+            let revenue = summaries.reduce(Decimal(0)) { $0 + $1.revenue }
+            return "共 \(summaries.count) 位 · 累计消费 \(revenue.cny)"
+        }
+    }
+
+    /// 未选中机器时的落脚点
+    private var recentItems: [Item] {
+        Array(
+            allItems
+                .filter { $0.status == .inStock }
+                .sorted { $0.inboundAt > $1.inboundAt }
+                .prefix(3)
+        )
+    }
+
     // MARK: - 详情
 
     @ViewBuilder
@@ -199,11 +248,9 @@ struct RootView: View {
                     systemImage: "square.stack.3d.up"
                 )
             } else {
-                EmptyState(
-                    title: "选择一台机器",
-                    message: "中间列表可按序列号、型号或客户筛选",
-                    systemImage: "shippingbox"
-                )
+                RecentItemsPanel(items: recentItems) { item in
+                    itemSelection = [item.id]
+                }
             }
         case .orders:
             if let order = selectedOrder {

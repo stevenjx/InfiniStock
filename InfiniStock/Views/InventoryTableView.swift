@@ -20,7 +20,7 @@ struct InventoryTableView: View {
             TableColumn("型号", value: \.modelName) { item in
                 CellTitle(title: item.modelName, subtitle: item.serialNumber)
             }
-            .width(min: 170, ideal: 210)
+            .width(min: 150, ideal: 190)
 
             TableColumn("规格") { item in
                 Text(specText(item))
@@ -28,21 +28,21 @@ struct InventoryTableView: View {
                     .foregroundStyle(Token.Ink.secondary)
                     .lineLimit(1)
             }
-            .width(min: 76, ideal: 96)
+            .width(min: 62, ideal: 80)
 
             TableColumn("落地成本", value: \.landedCostCNY) { item in
                 Text(item.landedCostCNY.cny)
                     .font(Token.Typography.money)
                     .foregroundStyle(Token.Ink.primary)
             }
-            .width(min: 92, ideal: 100)
+            .width(min: 84, ideal: 94)
 
             TableColumn("标价", value: \.listPriceCNY) { item in
                 Text(item.listPriceCNY.cny)
                     .font(Token.Typography.money)
                     .foregroundStyle(Token.Ink.secondary)
             }
-            .width(min: 88, ideal: 96)
+            .width(min: 78, ideal: 88)
 
             TableColumn("库龄") { item in
                 if item.isOverdue {
@@ -53,16 +53,18 @@ struct InventoryTableView: View {
                         .foregroundStyle(Token.Ink.secondary)
                 }
             }
-            .width(min: 64, ideal: 72)
+            .width(min: 54, ideal: 64)
 
-            TableColumn("状态", value: \.statusRaw) { item in
-                Badge(
-                    text: item.status.label,
-                    tone: item.status.tone,
-                    style: item.status == .inStock ? .outline : .filled
-                )
+            if statusFilter == nil {
+                TableColumn("状态", value: \.statusRaw) { item in
+                    Badge(
+                        text: item.status.label,
+                        tone: item.status.tone,
+                        style: item.status == .inStock ? .outline : .filled
+                    )
+                }
+                .width(min: 58, ideal: 68)
             }
-            .width(min: 66, ideal: 74)
         } rows: {
             ForEach(rows) { item in
                 TableRow(item)
