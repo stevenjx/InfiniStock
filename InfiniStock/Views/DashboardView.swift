@@ -1,6 +1,9 @@
 import SwiftUI
 import SwiftData
 
+/// 旧调用点过渡用别名；U4 会整体重写仪表盘
+private typealias TokenStatCard = StatCard
+
 struct DashboardView: View {
     let cloudSyncEnabled: Bool
     @Query private var items: [Item]
@@ -31,10 +34,10 @@ struct DashboardView: View {
                 }
 
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], spacing: 12) {
-                    StatCard(title: "在库台数", value: "\(stats.inStockCount)", unit: "台")
-                    StatCard(title: "库存总值（成本）", value: stats.stockCostValue.cny, unit: nil)
-                    StatCard(title: "今日销售额", value: stats.todayRevenue.cny, unit: nil)
-                    StatCard(title: "今日毛利", value: stats.todayProfit.cny, unit: nil)
+                    TokenStatCard(title: "在库台数", value: "\(stats.inStockCount) 台", systemImage: "shippingbox", tone: .brand)
+                    TokenStatCard(title: "库存总值（成本）", value: stats.stockCostValue.cny, systemImage: "banknote", tone: .neutral)
+                    TokenStatCard(title: "今日销售额", value: stats.todayRevenue.cny, systemImage: "cart", tone: .ok)
+                    TokenStatCard(title: "今日毛利", value: stats.todayProfit.cny, systemImage: "chart.line.uptrend.xyaxis", tone: .ok)
                 }
 
                 HStack(spacing: 16) {
@@ -143,33 +146,5 @@ struct DashboardView: View {
         case "61-90 天": .orange
         default: .red
         }
-    }
-}
-
-private struct StatCard: View {
-    let title: String
-    let value: String
-    let unit: String?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(value)
-                    .font(.title3.weight(.semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
-                if let unit {
-                    Text(unit)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 10))
     }
 }
