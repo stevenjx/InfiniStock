@@ -26,19 +26,26 @@ struct PhotoField: View {
                     }
                 }
             } else {
-                RoundedRectangle(cornerRadius: 8)
-                    .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [5]))
-                    .foregroundStyle(isTargeted ? Color.accentColor : Color.secondary.opacity(0.5))
-                    .frame(height: 140)
-                    .overlay {
-                        VStack(spacing: 6) {
-                            Image(systemName: "photo.badge.plus").font(.title2)
-                            Text("把照片拖到这里").font(.caption)
-                            Button("选择照片…") { importing = true }
-                                .controlSize(.small)
-                        }
-                        .foregroundStyle(.secondary)
+                ZStack {
+                    RoundedRectangle(cornerRadius: Token.Radius.control)
+                        .fill(Token.Surface.sidebar)
+                    RoundedRectangle(cornerRadius: Token.Radius.control)
+                        .strokeBorder(
+                            isTargeted ? Token.Accent.brand : Token.Border.hairline,
+                            lineWidth: isTargeted ? 1.5 : 1
+                        )
+                    VStack(spacing: 6) {
+                        Image(systemName: "photo.badge.plus")
+                            .font(.system(size: 20, weight: .light))
+                            .foregroundStyle(Token.Ink.tertiary)
+                        Text("把照片拖到这里")
+                            .font(Token.Typography.caption)
+                            .foregroundStyle(Token.Ink.secondary)
+                        Button("选择照片…") { importing = true }
+                            .controlSize(.small)
                     }
+                }
+                .frame(height: 132)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

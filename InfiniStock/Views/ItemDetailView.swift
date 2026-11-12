@@ -1,8 +1,10 @@
 import SwiftUI
 import SwiftData
 
+/// 机器详情页。内容抽到 ItemDetailContent，方便渲染预览与复用。
 struct ItemDetailView: View {
     let item: Item
+
     @Environment(\.modelContext) private var modelContext
     @State private var showingSale = false
     @State private var showingReceipt = false
@@ -11,55 +13,11 @@ struct ItemDetailView: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        Form {
-            Section("机器") {
-                LabeledContent("型号", value: item.modelName)
-                LabeledContent("序列号", value: item.serialNumber)
-                LabeledContent("芯片", value: dash(item.chip))
-                LabeledContent("内存", value: dash(item.memory))
-                LabeledContent("存储", value: dash(item.storage))
-                LabeledContent("颜色", value: dash(item.color))
-                LabeledContent("成色", value: item.condition.rawValue)
-                LabeledContent("入库时间", value: item.inboundAt.formatted(date: .numeric, time: .shortened))
-            }
-
-            Section("实物照片") {
-                PhotoField(item: item)
-            }
-
-            Section("成本") {
-                LabeledContent("进价", value: "\(Money.text(item.costAmount)) \(item.currency.rawValue)")
-                LabeledContent("汇率", value: Money.text(item.exchangeRate))
-                LabeledContent("运费", value: item.shippingCNY.cny)
-                LabeledContent("落地成本", value: item.landedCostCNY.cny)
-                if let batch = item.batch {
-                    LabeledContent("批次", value: batch.name)
-                }
-            }
-
-            Section("价格") {
-                LabeledContent("标价", value: item.listPriceCNY.cny)
-                if item.status == .sold {
-                    LabeledContent("成交价", value: item.soldPriceCNY.cny)
-                    LabeledContent("毛利") {
-                        Text(item.grossProfitCNY.cny)
-                            .foregroundStyle(item.grossProfitCNY < 0 ? Color.orange : Color.primary)
-                    }
-                }
-            }
-
-            Section("状态") {
-                LabeledContent("当前状态", value: item.status.label)
-                if let order = item.order {
-                    LabeledContent("单号", value: order.number)
-                    LabeledContent("客户", value: dash(order.customerName))
-                    LabeledContent("联系方式", value: dash(order.customerContact))
-                    LabeledContent("出库时间", value: (item.soldAt ?? order.createdAt).formatted(date: .numeric, time: .shortened))
-                }
-            }
+        ScrollView {
+            ItemDetailContent(item: item)
+                .padding(Token.Space.l)
         }
-        .formStyle(.grouped)
-        .navigationTitle(item.modelName.isEmpty ? "机器详情" : item.modelName)
+        .background(Token.Surface.canvas)
         .toolbar {
             if item.status == .inStock {
                 ToolbarItem(placement: .primaryAction) {
@@ -112,7 +70,7 @@ struct ItemDetailView: View {
         } message: {
             Text("机器会回到在库状态，凭证作废。该操作需要系统身份验证。")
         }
-        .alert("撤销失败", isPresented: Binding(
+        .alert("操作失败", isPresented: Binding(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
         )) {
@@ -148,8 +106,131 @@ struct ItemDetailView: View {
             errorMessage = error.localizedDescription
         }
     }
+}
 
-    private func dash(_ value: String) -> String {
-        value.isEmpty ? "—" : value
+/// 详情页内容（不含滚动与工具栏），可直接渲染成图验收。
+struct ItemDetailContent: View {
+    let item: Item
+
+    var body: some View {
+        VStack(spacing: Token.Space.m) {
+            header
+
+            SectionCard(title: "机器") {
+                KeyValueRow(label: "芯片", value: item.chip)
+                KeyValueRow(label: "内存", value: item.memory)
+                KeyValueRow(label: "存储", value: item.storage)
+                KeyValueRow(label: "颜色", value: item.color)
+                KeyValueRow(label: "成色", value: item.condition.rawValue)
+                KeyValueRow(label: "入库时间", value: item.inboundAt.formatted(date: .numeric, time: .shortened))
+            }
+
+            SectionCard(title: "成本") {
+                KeyValueRow(label: "进价", value: "\(Money.text(item.costAmount)) \(item.currency.rawValue)")
+                KeyValueRow(label: "汇率", value: Money.text(item.exchangeRate))
+                KeyValueRow(label: "运费", value: item.shippingCNY.cny)
+                KeyValueRow(label: "落地成本", value: item.landedCostCNY.cny)
+                if let batch = item.batch {
+                    KeyValueRow(label: "批次", value: batch.name)
+                }
+            }
+
+            SectionCard(title: "价格") {
+                KeyValueRow(label: "标价", value: item.listPriceCNY.cny)
+                if item.status == .sold {
+                    KeyValueRow(label: "成交价", value: item.soldPriceCNY.cny)
+                    KeyValueRow(
+                        label: "毛利",
+                        value: item.grossProfitCNY.signedCNY,
+                        valueTone: item.grossProfitCNY < 0 ? .danger : .ok
+                    )
+                } else {
+                    let expected = item.listPriceCNY - item.landedCostCNY
+                    KeyValueRow(
+                        label: "预计毛利",
+                        value: expected.signedCNY,
+                        valueTone: expected < 0 ? .danger : .ok
+                    )
+                }
+            }
+
+            if let order = item.order {
+                SectionCard(title: "单据") {
+                    KeyValueRow(label: "单号", value: order.number)
+                    KeyValueRow(label: "客户", value: order.customerName)
+                    KeyValueRow(label: "联系方式", value: order.customerContact)
+                    KeyValueRow(label: "收款方式", value: order.paymentMethod.rawValue)
+                    KeyValueRow(
+                        label: "出库时间",
+                        value: (item.soldAt ?? order.createdAt).formatted(date: .numeric, time: .shortened)
+                    )
+                    if order.hasReturns {
+                        KeyValueRow(label: "售后", value: "本单已退 \(order.returnedCount) 台", valueTone: .warn)
+                    }
+                }
+            }
+
+            SectionCard(title: "实物照片") {
+                PhotoField(item: item)
+            }
+        }
+    }
+
+    private var header: some View {
+        HStack(alignment: .top, spacing: Token.Space.m) {
+            thumbnail
+            VStack(alignment: .leading, spacing: 6) {
+                Text(item.modelName.isEmpty ? "未命名型号" : item.modelName)
+                    .font(Token.Typography.pageTitle)
+                    .foregroundStyle(Token.Ink.primary)
+                    .lineLimit(2)
+                Text(item.serialNumber)
+                    .font(.system(size: 12).monospaced())
+                    .foregroundStyle(Token.Ink.secondary)
+                HStack(spacing: 6) {
+                    Badge(
+                        text: item.status.label,
+                        tone: item.status.tone,
+                        style: item.status == .inStock ? .outline : .filled
+                    )
+                    if item.isOverdue {
+                        Badge(text: "库龄 \(item.ageInDays) 天", tone: .danger, style: .filled)
+                    }
+                }
+                if !item.specSummary.isEmpty {
+                    Text(item.specSummary)
+                        .font(Token.Typography.caption)
+                        .foregroundStyle(Token.Ink.tertiary)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(Token.Space.l)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Token.Surface.card, in: .rect(cornerRadius: Token.Radius.card))
+        .overlay {
+            RoundedRectangle(cornerRadius: Token.Radius.card)
+                .strokeBorder(Token.Border.hairline, lineWidth: 1)
+        }
+    }
+
+    @ViewBuilder
+    private var thumbnail: some View {
+        if let data = item.photoData, let image = NSImage(data: data) {
+            Image(nsImage: image)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 84, height: 84)
+                .clipShape(.rect(cornerRadius: Token.Radius.control))
+        } else {
+            RoundedRectangle(cornerRadius: Token.Radius.control)
+                .fill(Token.Surface.sidebar)
+                .frame(width: 84, height: 84)
+                .overlay {
+                    Image(systemName: "iphone.gen3")
+                        .font(.system(size: 26, weight: .light))
+                        .foregroundStyle(Token.Ink.tertiary)
+                }
+        }
     }
 }

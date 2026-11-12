@@ -226,25 +226,25 @@ struct RootView: View {
             if let order = selectedOrder {
                 OrderDetailView(order: order)
             } else {
-                ContentUnavailableView(
-                    "选择一张单据",
-                    systemImage: "doc.text",
-                    description: Text("中间列表可搜索单号、客户或序列号")
+                EmptyState(
+                    title: "选择一张单据",
+                    message: "中间列表可搜索单号、客户或序列号",
+                    systemImage: "doc.text"
                 )
             }
         } else if selection.count == 1, let item = selectedItems.first {
             ItemDetailView(item: item)
         } else if selection.count > 1 {
-            ContentUnavailableView(
-                "已选中 \(selection.count) 台",
-                systemImage: "square.stack.3d.up",
-                description: Text("点工具栏「出库销售」按标价批量处理")
+            EmptyState(
+                title: "已选中 \(selection.count) 台",
+                message: "点工具栏「出库销售」批量处理，价格可逐台修改",
+                systemImage: "square.stack.3d.up"
             )
         } else {
-            ContentUnavailableView(
-                "选择一台机器",
-                systemImage: "shippingbox",
-                description: Text("中间列表可按序列号或型号筛选")
+            EmptyState(
+                title: "选择一台机器",
+                message: "中间列表可按序列号、型号或客户筛选",
+                systemImage: "shippingbox"
             )
         }
     }
