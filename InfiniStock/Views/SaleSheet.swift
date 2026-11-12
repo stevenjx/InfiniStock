@@ -20,7 +20,7 @@ struct SaleSheet: View {
         self.items = items
         var initial: [PersistentIdentifier: String] = [:]
         for item in items {
-            initial[item.id] = item.listPriceCNY > 0 ? Money.text(item.listPriceCNY) : ""
+            initial[item.id] = item.listPrice > 0 ? Money.text(item.listPrice) : ""
         }
         _priceTexts = State(initialValue: initial)
     }
@@ -34,7 +34,7 @@ struct SaleSheet: View {
     private var payable: Decimal { subtotal - discount - rounding }
 
     private var landedTotal: Decimal {
-        items.reduce(Decimal(0)) { $0 + $1.landedCostCNY }
+        items.reduce(Decimal(0)) { $0 + $1.landedCost }
     }
 
     private var profit: Decimal { payable - landedTotal }
@@ -60,7 +60,7 @@ struct SaleSheet: View {
                                     .monospaced()
                                     .foregroundStyle(Token.Ink.secondary)
                                 Spacer()
-                                Text("标价 \(item.listPriceCNY.cny)")
+                                Text("标价 \(item.listPrice.mmk)")
                                     .font(.caption)
                                     .foregroundStyle(Token.Ink.secondary)
                             }
@@ -72,7 +72,7 @@ struct SaleSheet: View {
                                     .decimalKeyboard()
                                     .multilineTextAlignment(.trailing)
                                 Button("按标价") {
-                                    priceTexts[item.id] = Money.text(item.listPriceCNY)
+                                    priceTexts[item.id] = Money.text(item.listPrice)
                                 }
                                 .font(.caption)
                                 .buttonStyle(.link)
@@ -88,7 +88,7 @@ struct SaleSheet: View {
                 }
 
                 Section("收款") {
-                    LabeledContent("商品小计", value: subtotal.cny)
+                    LabeledContent("商品小计", value: subtotal.mmk)
                     TextField("折扣", text: $discountText)
                         .decimalKeyboard()
                     TextField("抹零", text: $roundingText)
@@ -101,7 +101,7 @@ struct SaleSheet: View {
                     HStack {
                         Text("应收合计").fontWeight(.semibold)
                         Spacer()
-                        Text(payable.cny)
+                        Text(payable.mmk)
                             .fontWeight(.semibold)
                             .foregroundStyle(payable < 0 ? Token.Status.danger : Token.Ink.primary)
                     }
@@ -116,7 +116,7 @@ struct SaleSheet: View {
 
                 Section("预估毛利") {
                     LabeledContent("毛利") {
-                        Text(profit.cny)
+                        Text(profit.mmk)
                             .foregroundStyle(profit < 0 ? Token.Status.danger : Token.Ink.primary)
                     }
                     if profit < 0 {
@@ -176,8 +176,8 @@ struct SaleSheet: View {
                 lines: lines,
                 customerName: customerName,
                 customerContact: customerContact,
-                discountCNY: discount,
-                roundingCNY: rounding,
+                discount: discount,
+                rounding: rounding,
                 paymentMethod: paymentMethod,
                 in: context
             )

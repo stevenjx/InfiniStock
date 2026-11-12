@@ -75,7 +75,7 @@ struct ImportSheet: View {
                                 Text(batch.name).tag(Optional(batch))
                             }
                         }
-                        Text("导入的机器会按该批次的汇率与运费分摊规则重算落地成本。")
+                        Text("导入的机器会按该批次的汇率与运费分摊规则重算总进价。")
                             .font(.caption)
                             .foregroundStyle(Token.Ink.secondary)
                     }

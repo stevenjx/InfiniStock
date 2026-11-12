@@ -32,20 +32,20 @@ struct OrderDetailView: View {
                     }
 
                     PanelSection(title: "金额") {
-                        KeyValueRow(label: "商品小计", value: order.subtotalCNY.cny)
-                        if order.discountCNY > 0 {
-                            KeyValueRow(label: "折扣 + 抹零", value: "−" + (order.discountCNY + order.roundingCNY).cny)
+                        KeyValueRow(label: "商品小计", value: order.subtotal.mmk)
+                        if order.discount > 0 {
+                            KeyValueRow(label: "折扣 + 抹零", value: "−" + (order.discount + order.rounding).mmk)
                         }
-                        KeyValueRow(label: "应收合计", value: order.totalCNY.cny)
+                        KeyValueRow(label: "应收合计", value: order.total.mmk)
                         KeyValueRow(
                             label: "毛利",
-                            value: order.profitCNY.signedCNY,
-                            valueTone: order.profitCNY < 0 ? .danger : .ok
+                            value: order.profit.signedMMK,
+                            valueTone: order.profit < 0 ? .danger : .ok
                         )
                         if order.hasReturns {
                             KeyValueRow(
                                 label: "已退货",
-                                value: "\(order.returnedCount) 台 · 退回 \(order.returnedAmountCNY.cny)",
+                                value: "\(order.returnedCount) 台 · 退回 \(order.returnedAmount.mmk)",
                                 valueTone: .warn
                             )
                         }
@@ -61,7 +61,7 @@ struct OrderDetailView: View {
                             HStack(spacing: Token.Space.s) {
                                 CellTitle(title: item.modelName, subtitle: item.serialNumber)
                                 Spacer()
-                                Text(item.soldPriceCNY.cny)
+                                Text(item.soldPrice.mmk)
                                     .font(Token.Typography.money)
                                     .foregroundStyle(Token.Ink.primary)
                             }
@@ -114,19 +114,19 @@ struct ReturnSheet: View {
     }
 
     private var refund: Decimal {
-        selectedItems.reduce(Decimal(0)) { $0 + $1.soldPriceCNY }
+        selectedItems.reduce(Decimal(0)) { $0 + $1.soldPrice }
     }
 
     /// 预览重算结果，与 OrderService 使用同一套规则
     private var previewTotal: Decimal {
         let remaining = order.itemList.filter { !selected.contains($0.id) }
         guard !remaining.isEmpty else { return 0 }
-        let priceBefore = order.itemList.reduce(Decimal(0)) { $0 + $1.soldPriceCNY }
-        let subtotal = remaining.reduce(Decimal(0)) { $0 + $1.soldPriceCNY }
+        let priceBefore = order.itemList.reduce(Decimal(0)) { $0 + $1.soldPrice }
+        let subtotal = remaining.reduce(Decimal(0)) { $0 + $1.soldPrice }
         guard priceBefore > 0 else { return 0 }
         let ratio = (subtotal / priceBefore).rounded(6)
-        let discount = (order.discountCNY * ratio).rounded(2)
-        let rounding = (order.roundingCNY * ratio).rounded(2)
+        let discount = (order.discount * ratio).rounded(2)
+        let rounding = (order.rounding * ratio).rounded(2)
         return (subtotal - discount - rounding).rounded(2)
     }
 
@@ -145,7 +145,7 @@ struct ReturnSheet: View {
                                         .foregroundStyle(Token.Ink.secondary)
                                 }
                                 Spacer()
-                                Text(item.soldPriceCNY.cny)
+                                Text(item.soldPrice.mmk)
                                     .monospacedDigit()
                                     .foregroundStyle(Token.Ink.secondary)
                             }
@@ -155,8 +155,8 @@ struct ReturnSheet: View {
                 }
 
                 Section("影响") {
-                    LabeledContent("退回金额", value: refund.cny)
-                    LabeledContent("剩余应收", value: previewTotal.cny)
+                    LabeledContent("退回金额", value: refund.mmk)
+                    LabeledContent("剩余应收", value: previewTotal.mmk)
                     if selected.count == order.itemList.count {
                         Text("全部退回后单据将标记为已全退，库存全部恢复。")
                             .font(.caption)

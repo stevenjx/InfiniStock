@@ -50,7 +50,7 @@ struct ItemEntityQuery: EntityQuery {
 /// 不打开 App 也能查机况。
 struct FindItemIntent: AppIntent {
     static let title: LocalizedStringResource = "查询机器"
-    static let description = IntentDescription("按序列号查询机器型号、状态与落地成本")
+    static let description = IntentDescription("按序列号查询机器型号、状态与总进价")
     static let openAppWhenRun = false
 
     @Parameter(title: "序列号")
@@ -67,7 +67,7 @@ struct FindItemIntent: AppIntent {
             return .result(dialog: "没有找到序列号 \(InventoryService.normalize(serial))")
         }
         return .result(
-            dialog: "\(item.modelName) · \(item.status.label) · 落地成本 \(item.landedCostCNY.cny)"
+            dialog: "\(item.modelName) · \(item.status.label) · 总进价 \(item.landedCost.mmk)"
         )
     }
 }

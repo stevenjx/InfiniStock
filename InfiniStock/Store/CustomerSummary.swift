@@ -39,8 +39,8 @@ struct CustomerSummary: Identifiable {
                 contact: parts.count > 1 ? String(parts[1]) : "",
                 orderCount: group.count,
                 machineCount: group.reduce(0) { $0 + $1.itemList.count },
-                revenue: group.reduce(Decimal(0)) { $0 + $1.totalCNY },
-                profit: group.reduce(Decimal(0)) { $0 + $1.profitCNY },
+                revenue: group.reduce(Decimal(0)) { $0 + $1.total },
+                profit: group.reduce(Decimal(0)) { $0 + $1.profit },
                 lastPurchase: group.map(\.createdAt).max() ?? first.createdAt
             )
         }

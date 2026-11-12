@@ -3,6 +3,7 @@ import SwiftData
 
 enum BackupError: LocalizedError {
     case unsupportedVersion(Int)
+    case legacyVersion(Int)
     case corruptFile(String)
     case emptySnapshot
 
@@ -10,6 +11,8 @@ enum BackupError: LocalizedError {
         switch self {
         case .unsupportedVersion(let version):
             "备份格式版本 \(version) 高于当前 App，请先升级"
+        case .legacyVersion(let version):
+            "这份备份是旧格式（v\(version)），金额口径与当前版本不同，无法直接恢复。请用当前版本重新导出备份。"
         case .corruptFile(let detail):
             "备份文件无法解析：\(detail)"
         case .emptySnapshot:
@@ -42,13 +45,12 @@ enum BackupService {
                 color: item.color,
                 condition: item.conditionRaw,
                 status: item.statusRaw,
-                costAmount: item.costAmount.plainString,
-                costCurrency: item.costCurrencyRaw,
+                costCNY: item.costCNY.plainString,
                 exchangeRate: item.exchangeRate.plainString,
-                shippingCNY: item.shippingCNY.plainString,
-                landedCostCNY: item.landedCostCNY.plainString,
-                listPriceCNY: item.listPriceCNY.plainString,
-                soldPriceCNY: item.soldPriceCNY.plainString,
+                shipping: item.shipping.plainString,
+                landedCost: item.landedCost.plainString,
+                listPrice: item.listPrice.plainString,
+                soldPrice: item.soldPrice.plainString,
                 inboundAt: item.inboundAt,
                 soldAt: item.soldAt,
                 orderNumber: item.order?.number,
@@ -62,19 +64,19 @@ enum BackupService {
                 number: order.number,
                 customerName: order.customerName,
                 customerContact: order.customerContact,
-                subtotalCNY: order.subtotalCNY.plainString,
-                totalCNY: order.totalCNY.plainString,
-                profitCNY: order.profitCNY.plainString,
+                subtotal: order.subtotal.plainString,
+                total: order.total.plainString,
+                profit: order.profit.plainString,
+                discount: order.discount.plainString,
+                rounding: order.rounding.plainString,
+                paymentMethod: order.paymentMethodRaw,
                 createdAt: order.createdAt,
                 originDeviceID: order.originDeviceID,
                 voidedAt: order.voidedAt,
                 itemSerials: order.itemList.map(\.serialNumber).sorted(),
-                discountCNY: order.discountCNY.plainString,
-                roundingCNY: order.roundingCNY.plainString,
-                paymentMethod: order.paymentMethodRaw,
                 sequenceYear: order.sequenceYear,
                 sequenceNumber: order.sequenceNumber,
-                returnedAmountCNY: order.returnedAmountCNY.plainString,
+                returnedAmount: order.returnedAmount.plainString,
                 returnedCount: order.returnedCount
             )
         }
@@ -83,9 +85,8 @@ enum BackupService {
             BackupSnapshot.BatchDTO(
                 name: batch.name,
                 supplier: batch.supplier,
-                currency: batch.currencyRaw,
                 exchangeRate: batch.exchangeRate.plainString,
-                totalShippingCNY: batch.totalShippingCNY.plainString,
+                totalShipping: batch.totalShipping.plainString,
                 allocation: batch.allocationRaw,
                 createdAt: batch.createdAt
             )
@@ -117,6 +118,9 @@ enum BackupService {
             guard snapshot.formatVersion <= BackupSnapshot.currentFormatVersion else {
                 throw BackupError.unsupportedVersion(snapshot.formatVersion)
             }
+            guard snapshot.formatVersion >= BackupSnapshot.minimumFormatVersion else {
+                throw BackupError.legacyVersion(snapshot.formatVersion)
+            }
             guard !snapshot.items.isEmpty else { throw BackupError.emptySnapshot }
             return snapshot
         } catch let error as BackupError {
@@ -132,7 +136,7 @@ enum BackupService {
 
         let header = [
             "序列号", "型号", "芯片", "内存", "存储", "颜色", "成色", "状态",
-            "进价", "币种", "汇率", "运费", "落地成本", "标价",
+            "进价(人民币)", "汇率", "运费(缅币)", "总进价(缅币)", "标价(缅币)",
             "成交价", "毛利", "入库日期", "售出日期", "单号", "客户", "批次",
         ].joined(separator: ",")
 
@@ -150,14 +154,13 @@ enum BackupService {
                 item.color,
                 item.condition.rawValue,
                 item.status.label,
-                item.costAmount.plainString,
-                item.currency.rawValue,
+                item.costCNY.plainString,
                 item.exchangeRate.plainString,
-                item.shippingCNY.plainString,
-                item.landedCostCNY.plainString,
-                item.listPriceCNY.plainString,
-                item.status == .sold ? item.soldPriceCNY.plainString : "",
-                item.status == .sold ? item.grossProfitCNY.plainString : "",
+                item.shipping.plainString,
+                item.landedCost.plainString,
+                item.listPrice.plainString,
+                item.status == .sold ? item.soldPrice.plainString : "",
+                item.status == .sold ? item.grossProfit.plainString : "",
                 formatter.string(from: item.inboundAt),
                 item.soldAt.map(formatter.string) ?? "",
                 item.order?.number ?? "",
@@ -187,9 +190,8 @@ enum BackupService {
             let batch = Batch()
             batch.name = dto.name
             batch.supplier = dto.supplier
-            batch.currencyRaw = dto.currency
             batch.exchangeRate = dto.exchangeRate.decimalValue
-            batch.totalShippingCNY = dto.totalShippingCNY.decimalValue
+            batch.totalShipping = dto.totalShipping.decimalValue
             batch.allocationRaw = dto.allocation
             batch.createdAt = dto.createdAt
             context.insert(batch)
@@ -206,15 +208,14 @@ enum BackupService {
                 storage: dto.storage,
                 color: dto.color,
                 condition: ItemCondition(rawValue: dto.condition) ?? .p95,
-                costAmount: dto.costAmount.decimalValue,
-                currency: CostCurrency(rawValue: dto.costCurrency) ?? .cny,
+                costCNY: dto.costCNY.decimalValue,
                 exchangeRate: dto.exchangeRate.decimalValue,
-                shippingCNY: dto.shippingCNY.decimalValue,
-                listPriceCNY: dto.listPriceCNY.decimalValue
+                shipping: dto.shipping.decimalValue,
+                listPrice: dto.listPrice.decimalValue
             )
             item.statusRaw = dto.status
-            item.soldPriceCNY = dto.soldPriceCNY.decimalValue
-            item.landedCostCNY = dto.landedCostCNY.decimalValue
+            item.soldPrice = dto.soldPrice.decimalValue
+            item.landedCost = dto.landedCost.decimalValue
             item.inboundAt = dto.inboundAt
             item.soldAt = dto.soldAt
             item.photoData = dto.photoBase64.flatMap { Data(base64Encoded: $0) }
@@ -232,24 +233,19 @@ enum BackupService {
             order.number = dto.number
             order.customerName = dto.customerName
             order.customerContact = dto.customerContact
-            order.subtotalCNY = dto.subtotalCNY.decimalValue
-            order.discountCNY = (dto.discountCNY ?? "0").decimalValue
-            order.roundingCNY = (dto.roundingCNY ?? "0").decimalValue
-            order.totalCNY = dto.totalCNY.decimalValue
-            order.profitCNY = dto.profitCNY.decimalValue
-            order.paymentMethodRaw = dto.paymentMethod ?? PaymentMethod.cash.rawValue
+            order.subtotal = dto.subtotal.decimalValue
+            order.discount = dto.discount.decimalValue
+            order.rounding = dto.rounding.decimalValue
+            order.total = dto.total.decimalValue
+            order.profit = dto.profit.decimalValue
+            order.paymentMethodRaw = dto.paymentMethod
             order.createdAt = dto.createdAt
             order.originDeviceID = dto.originDeviceID
             order.voidedAt = dto.voidedAt
-            order.returnedAmountCNY = (dto.returnedAmountCNY ?? "0").decimalValue
-            order.returnedCount = dto.returnedCount ?? 0
-            order.sequenceYear = dto.sequenceYear ?? Calendar.current.component(.year, from: dto.createdAt)
-            order.sequenceNumber = dto.sequenceNumber ?? (OrderNumberFactory.parse(dto.number)?.sequence ?? 0)
-            // 旧备份按解析出的序号补齐单号
-            if dto.sequenceNumber == nil, let parsed = OrderNumberFactory.parse(dto.number) {
-                order.sequenceYear = parsed.year
-                order.sequenceNumber = parsed.sequence
-            }
+            order.returnedAmount = dto.returnedAmount.decimalValue
+            order.returnedCount = dto.returnedCount
+            order.sequenceYear = dto.sequenceYear
+            order.sequenceNumber = dto.sequenceNumber
             context.insert(order)
 
             for serial in dto.itemSerials {

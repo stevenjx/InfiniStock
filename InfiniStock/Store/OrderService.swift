@@ -34,34 +34,34 @@ enum OrderService {
             throw OrderError.notInOrder(item.serialNumber, order.number)
         }
 
-        let priceBefore = order.itemList.reduce(Decimal(0)) { $0 + $1.soldPriceCNY }
+        let priceBefore = order.itemList.reduce(Decimal(0)) { $0 + $1.soldPrice }
         var refund: Decimal = 0
 
         for item in items {
-            refund += item.soldPriceCNY
+            refund += item.soldPrice
             restore(item)
         }
 
         let remaining = order.itemList
         order.returnedCount += items.count
-        order.subtotalCNY = remaining.reduce(Decimal(0)) { $0 + $1.soldPriceCNY }.rounded(2)
-        order.returnedAmountCNY += refund.rounded(2)
+        order.subtotal = remaining.reduce(Decimal(0)) { $0 + $1.soldPrice }.rounded(2)
+        order.returnedAmount += refund.rounded(2)
 
         // 折扣按剩余货值比例保留；全退时折扣归零
         let discountBase = priceBefore
         if remaining.isEmpty || discountBase == 0 {
-            order.discountCNY = 0
-            order.roundingCNY = 0
-            order.totalCNY = 0
-            order.profitCNY = 0
+            order.discount = 0
+            order.rounding = 0
+            order.total = 0
+            order.profit = 0
         } else {
-            let ratio = (order.subtotalCNY / discountBase).rounded(6)
-            order.discountCNY = (order.discountCNY * ratio).rounded(2)
-            order.roundingCNY = (order.roundingCNY * ratio).rounded(2)
-            let total = (order.subtotalCNY - order.discountCNY - order.roundingCNY).rounded(2)
-            let cost = remaining.reduce(Decimal(0)) { $0 + $1.landedCostCNY }
-            order.totalCNY = total
-            order.profitCNY = (total - cost).rounded(2)
+            let ratio = (order.subtotal / discountBase).rounded(6)
+            order.discount = (order.discount * ratio).rounded(2)
+            order.rounding = (order.rounding * ratio).rounded(2)
+            let total = (order.subtotal - order.discount - order.rounding).rounded(2)
+            let cost = remaining.reduce(Decimal(0)) { $0 + $1.landedCost }
+            order.total = total
+            order.profit = (total - cost).rounded(2)
         }
 
         if remaining.isEmpty {
@@ -77,7 +77,7 @@ enum OrderService {
     private static func restore(_ item: Item) {
         item.status = .inStock
         item.soldAt = nil
-        item.soldPriceCNY = 0
+        item.soldPrice = 0
         item.order = nil
         SpotlightIndexer.index(item)
     }

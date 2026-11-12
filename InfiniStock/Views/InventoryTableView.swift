@@ -20,7 +20,7 @@ struct InventoryTableView: View {
 
     enum SortChoice: String, CaseIterable, Identifiable {
         case newest = "入库时间"
-        case cost = "落地成本"
+        case cost = "总进价"
         case price = "标价"
         case age = "库龄"
 
@@ -62,21 +62,21 @@ struct InventoryTableView: View {
             }
             .width(min: 56, ideal: 72)
 
-            TableColumn("落地成本", value: \.landedCostCNY) { item in
-                Text(item.landedCostCNY.cny)
+            TableColumn("总进价", value: \.landedCost) { item in
+                Text(item.landedCost.mmk)
                     .font(Token.Typography.money)
                     .foregroundStyle(Token.Ink.primary)
             }
             .width(min: 88, ideal: 100)
 
-            TableColumn("标价 / 毛利", value: \.listPriceCNY) { item in
-                let profit = item.listPriceCNY - item.landedCostCNY
+            TableColumn("标价 / 毛利", value: \.listPrice) { item in
+                let profit = item.listPrice - item.landedCost
                 VStack(alignment: .trailing, spacing: 1) {
-                    Text(item.listPriceCNY.cny)
+                    Text(item.listPrice.mmk)
                         .font(Token.Typography.money)
                         .foregroundStyle(Token.Ink.primary)
-                    if item.listPriceCNY > 0 {
-                        Text(profit.signedCNY)
+                    if item.listPrice > 0 {
+                        Text(profit.signedMMK)
                             .font(Token.Typography.caption)
                             .foregroundStyle(profit < 0 ? Token.Status.danger : Token.Status.ok)
                     }
@@ -173,8 +173,8 @@ struct InventoryTableView: View {
     private func comparator(for choice: SortChoice) -> KeyPathComparator<Item> {
         switch choice {
         case .newest: KeyPathComparator(\Item.inboundAt, order: .reverse)
-        case .cost: KeyPathComparator(\Item.landedCostCNY, order: .reverse)
-        case .price: KeyPathComparator(\Item.listPriceCNY, order: .reverse)
+        case .cost: KeyPathComparator(\Item.landedCost, order: .reverse)
+        case .price: KeyPathComparator(\Item.listPrice, order: .reverse)
         case .age: KeyPathComparator(\Item.inboundAt, order: .forward)
         }
     }
@@ -190,8 +190,8 @@ struct InventoryTableView: View {
     private var footerTrailing: String? {
         let chosen = rows.filter { selection.contains($0.id) }
         guard !chosen.isEmpty else { return nil }
-        let cost = chosen.reduce(Decimal(0)) { $0 + $1.landedCostCNY }
-        return "已选中 \(chosen.count) 台 · 成本 \(cost.cny)"
+        let cost = chosen.reduce(Decimal(0)) { $0 + $1.landedCost }
+        return "已选中 \(chosen.count) 台 · 成本 \(cost.mmk)"
     }
 
     private func specText(_ item: Item) -> String {

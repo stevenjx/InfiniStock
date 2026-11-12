@@ -88,7 +88,7 @@ enum ReceiptPDFRenderer {
             text(item.serialNumber, x: margin + 184, topY: y + 7, font: .systemFont(ofSize: 9.5), color: .black, in: context)
             text(item.spec, x: margin + 308, topY: y + 7, font: .systemFont(ofSize: 9.5), color: .black, in: context)
             text(item.condition, x: margin + 390, topY: y + 7, font: .systemFont(ofSize: 9.5), color: .black, in: context)
-            text(item.price.cny, x: right - 6, topY: y + 7, font: .systemFont(ofSize: 9.5), color: .black, align: .right, in: context)
+            text(item.price.mmk, x: right - 6, topY: y + 7, font: .systemFont(ofSize: 9.5), color: .black, align: .right, in: context)
 
             y += 26
             line(from: CGPoint(x: margin, y: y), to: CGPoint(x: right, y: y), width: 0.4, color: .lightGray, in: context)
@@ -98,13 +98,13 @@ enum ReceiptPDFRenderer {
 
         // 小计 → 折扣 → 抹零 → 应收
         var amountRows: [(String, String)] = [
-            ("商品小计（\(document.lines.count) 台）", document.subtotal.cny)
+            ("商品小计（\(document.lines.count) 台）", document.subtotal.mmk)
         ]
         if document.discount > 0 {
-            amountRows.append(("折扣", "−" + document.discount.cny))
+            amountRows.append(("折扣", "−" + document.discount.mmk))
         }
         if document.rounding > 0 {
-            amountRows.append(("抹零", "−" + document.rounding.cny))
+            amountRows.append(("抹零", "−" + document.rounding.mmk))
         }
 
         for (label, value) in amountRows {
@@ -116,13 +116,13 @@ enum ReceiptPDFRenderer {
         line(from: CGPoint(x: right - 200, y: y - 4), to: CGPoint(x: right, y: y - 4), width: 0.4, color: .lightGray, in: context)
 
         text("应收合计", x: right - 200, topY: y, font: .boldSystemFont(ofSize: 11), color: .black, in: context)
-        text(document.total.cny, x: right - 6, topY: y - 2, font: .boldSystemFont(ofSize: 14), color: .black, align: .right, in: context)
+        text(document.total.mmk, x: right - 6, topY: y - 2, font: .boldSystemFont(ofSize: 14), color: .black, align: .right, in: context)
         y += 26
         text("大写：\(ChineseAmount.uppercase(document.total))", x: margin + 6, topY: y, font: .systemFont(ofSize: 10), color: .darkGray, in: context)
 
         if document.returnedCount > 0 {
             y += 16
-            text("售后：本单已退货 \(document.returnedCount) 台，退回 \(document.returnedAmount.cny)，上述金额为退货后净额。",
+            text("售后：本单已退货 \(document.returnedCount) 台，退回 \(document.returnedAmount.mmk)，上述金额为退货后净额。",
                  x: margin + 6, topY: y, font: .systemFont(ofSize: 9), color: .red, in: context)
         }
 

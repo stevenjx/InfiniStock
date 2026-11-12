@@ -61,14 +61,14 @@ struct CustomersView: View {
                 .width(min: 36, ideal: 40)
 
                 TableColumn("累计消费") { customer in
-                    Text(customer.revenue.cny)
+                    Text(customer.revenue.mmk)
                         .font(Token.Typography.money)
                         .foregroundStyle(Token.Ink.primary)
                 }
                 .width(min: 84, ideal: 94)
 
                 TableColumn("累计毛利") { customer in
-                    Text(customer.profit.signedCNY)
+                    Text(customer.profit.signedMMK)
                         .font(Token.Typography.money)
                         .foregroundStyle(customer.profit < 0 ? Token.Status.danger : Token.Status.ok)
                 }
@@ -96,7 +96,7 @@ struct CustomersView: View {
 
     private var footerTrailing: String? {
         guard let selection, let customer = customers.first(where: { $0.id == selection }) else { return nil }
-        return "\(customer.name) · 累计 \(customer.revenue.cny)"
+        return "\(customer.name) · 累计 \(customer.revenue.mmk)"
     }
 }
 
@@ -127,10 +127,10 @@ struct CustomerDetailView: View {
                     }
 
                     PanelSection(title: "消费统计") {
-                        KeyValueRow(label: "累计消费", value: customer.revenue.cny)
+                        KeyValueRow(label: "累计消费", value: customer.revenue.mmk)
                         KeyValueRow(
                             label: "累计毛利",
-                            value: customer.profit.signedCNY,
+                            value: customer.profit.signedMMK,
                             valueTone: customer.profit < 0 ? .danger : .ok
                         )
                         KeyValueRow(label: "毛利率", value: customer.marginRate.map { "\(Money.text($0))%" } ?? "—")
@@ -151,7 +151,7 @@ struct CustomerDetailView: View {
                                         .foregroundStyle(Token.Ink.tertiary)
                                 }
                                 Spacer()
-                                Text(order.totalCNY.cny)
+                                Text(order.total.mmk)
                                     .font(Token.Typography.money)
                                     .foregroundStyle(Token.Ink.primary)
                                 Badge(text: order.statusLabel, tone: order.tone, style: .filled)

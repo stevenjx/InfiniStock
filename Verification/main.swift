@@ -28,17 +28,16 @@ struct Verify {
 
         var draft = IntakeDraft()
         draft.serialNumber = "  c02abc123  "
-        draft.modelName = "iPhone 17 Pro Max"
+        draft.modelName = "MacBook Air M2 13\""
         draft.storage = "256GB"
-        draft.costAmount = "1000"
-        draft.currency = .usd
-        draft.exchangeRate = "7.1"
-        draft.shippingCNY = "120"
-        draft.listPriceCNY = "8999"
+        draft.costCNY = "1000"
+        draft.exchangeRate = "420"
+        draft.shipping = "120"
+        draft.listPrice = "2300000"
 
         let item = try InventoryService.intake(draft, in: context)
         check("入库规范化序列号", item.serialNumber == "C02ABC123", item.serialNumber)
-        check("落地成本 = 1000×7.1+120", item.landedCostCNY == 7220, "\(item.landedCostCNY)")
+        check("总进价 = 1000×420+120", item.landedCost == 420120, "\(item.landedCost)")
         check("默认状态为在库", item.status == .inStock)
 
         var duplicate = draft
@@ -54,16 +53,16 @@ struct Verify {
 
         let order = try InventoryService.sell(
             items: [item],
-            unitPrice: 8999,
+            unitPrice: 2300000,
             customerName: "张三",
             customerContact: "13800000000",
             in: context
         )
         check("出库后状态为已售", item.status == .sold)
-        check("成交价写入", item.soldPriceCNY == 8999)
-        check("订单金额", order.totalCNY == 8999, "\(order.totalCNY)")
-        check("订单毛利 = 8999-7220", order.profitCNY == 1779, "\(order.profitCNY)")
-        check("单台毛利一致", item.grossProfitCNY == 1779)
+        check("成交价写入", item.soldPrice == 2300000)
+        check("订单金额", order.total == 2300000, "\(order.total)")
+        check("订单毛利 = 2,300,000-420,120", order.profit == 1879880, "\(order.profit)")
+        check("单台毛利一致", item.grossProfit == 1879880)
         check("订单挂上机器", order.itemList.count == 1)
         check("机器反向关联订单", item.order?.number == order.number)
 
@@ -78,7 +77,7 @@ struct Verify {
 
         var second = draft
         second.serialNumber = "C02XYZ999"
-        second.listPriceCNY = "7999"
+        second.listPrice = "7999"
         let inStockItem = try InventoryService.intake(second, in: context)
 
         let all = try context.fetch(FetchDescriptor<Item>())
@@ -106,56 +105,54 @@ struct Verify {
 
         let countBatch = Batch()
         countBatch.name = "按台均摊"
-        countBatch.currency = .usd
-        countBatch.exchangeRate = 7.1
-        countBatch.totalShippingCNY = 100
+        countBatch.exchangeRate = 420
+        countBatch.totalShipping = 100
         countBatch.allocation = .byCount
         context.insert(countBatch)
 
         for index in 1...3 {
             var d = IntakeDraft()
             d.serialNumber = "CNT00\(index)"
-            d.modelName = "iPhone 17"
-            d.costAmount = "100"
-            d.exchangeRate = "7.1"
+            d.modelName = "MacBook Air M2"
+            d.costCNY = "100"
+            d.exchangeRate = "420"
             _ = try InventoryService.intake(d, batch: countBatch, in: context)
         }
 
-        let countShares = countBatch.itemList.map(\.shippingCNY).sorted()
+        let countShares = countBatch.itemList.map(\.shipping).sorted()
         check("按台均摊 3 台", countShares.count == 3, "\(countShares)")
         check("按台均摊合计精确 = 100",
-              countBatch.itemList.reduce(Decimal(0)) { $0 + $1.shippingCNY } == 100,
-              "\(countBatch.itemList.reduce(Decimal(0)) { $0 + $1.shippingCNY })")
+              countBatch.itemList.reduce(Decimal(0)) { $0 + $1.shipping } == 100,
+              "\(countBatch.itemList.reduce(Decimal(0)) { $0 + $1.shipping })")
         check("尾差落在最后一台", countShares.last == Decimal(string: "33.34"), "\(String(describing: countShares.last))")
         check("汇率锁定到每台",
-              countBatch.itemList.allSatisfy { $0.exchangeRate == 7.1 })
+              countBatch.itemList.allSatisfy { $0.exchangeRate == 420 })
 
         let valueBatch = Batch()
         valueBatch.name = "按货值分摊"
-        valueBatch.currency = .cny
-        valueBatch.exchangeRate = 1
-        valueBatch.totalShippingCNY = 120
+        valueBatch.exchangeRate = 400
+        valueBatch.totalShipping = 120
         valueBatch.allocation = .byValue
         context.insert(valueBatch)
 
         for (index, cost) in [100, 200, 300].enumerated() {
             var d = IntakeDraft()
             d.serialNumber = "VAL00\(index)"
-            d.modelName = "iPhone 16"
-            d.costAmount = "\(cost)"
-            d.exchangeRate = "1"
+            d.modelName = "MacBook Air M1"
+            d.costCNY = "\(cost)"
+            d.exchangeRate = "400"
             _ = try InventoryService.intake(d, batch: valueBatch, in: context)
         }
 
-        let valueShares = valueBatch.itemList.sorted { $0.serialNumber < $1.serialNumber }.map(\.shippingCNY)
+        let valueShares = valueBatch.itemList.sorted { $0.serialNumber < $1.serialNumber }.map(\.shipping)
         check("按货值分摊 100/200/300 → 20/40/60",
               valueShares == [20, 40, 60],
               "\(valueShares)")
         check("按货值分摊合计精确 = 120",
-              valueBatch.itemList.reduce(Decimal(0)) { $0 + $1.shippingCNY } == 120)
+              valueBatch.itemList.reduce(Decimal(0)) { $0 + $1.shipping } == 120)
 
-        let baseSum = valueBatch.itemList.reduce(Decimal(0)) { $0 + $1.costAmount * $1.exchangeRate }
-        let landedSum = valueBatch.itemList.reduce(Decimal(0)) { $0 + $1.landedCostCNY }
+        let baseSum = valueBatch.itemList.reduce(Decimal(0)) { $0 + $1.costCNY * $1.exchangeRate }
+        let landedSum = valueBatch.itemList.reduce(Decimal(0)) { $0 + $1.landedCost }
         check("落地成本合计 = 货值 + 运费", landedSum == baseSum + 120, "\(landedSum) vs \(baseSum + 120)")
 
 
@@ -168,15 +165,15 @@ struct Verify {
 
         func makeItem(_ serial: String, cost: Decimal, list: Decimal, days: Int, sold: Bool = false) -> Item {
             let item = Item(
-                serialNumber: serial, modelName: "iPhone 17",
-                costAmount: cost, currency: .cny, exchangeRate: 1,
-                shippingCNY: 0, listPriceCNY: list
+                serialNumber: serial, modelName: "MacBook Air M2",
+                costCNY: cost, exchangeRate: 1,
+                shipping: 0, listPrice: list
             )
             item.inboundAt = calendar.date(byAdding: .day, value: -days, to: .now)!
             if sold {
                 item.status = .sold
                 item.soldAt = .now
-                item.soldPriceCNY = list
+                item.soldPrice = list
             }
             statsContext.insert(item)
             return item
@@ -210,8 +207,8 @@ struct Verify {
 
         var bad = IntakeDraft()
         bad.serialNumber = "BADSERIAL"
-        bad.modelName = "iPhone 17"
-        bad.costAmount = "abc"
+        bad.modelName = "MacBook Air M2"
+        bad.costCNY = "abc"
         do {
             _ = try InventoryService.intake(bad, in: context)
             check("非法进价被拦截", false)
@@ -219,6 +216,27 @@ struct Verify {
             check("非法进价被拦截", true)
         }
 
+
+        // MARK: 币种口径（进价人民币 / 其余缅币）
+
+        check("缅币千分位", Decimal(1234567).mmk == "K 1,234,567", Decimal(1234567).mmk)
+        check("缅币保留两位小数", Decimal(string: "1234.56")!.mmk == "K 1,234.56", Decimal(string: "1234.56")!.mmk)
+        check("人民币进价带 ¥", Decimal(3600).cny.contains("¥"), Decimal(3600).cny)
+        check("毛利带正号", Decimal(1879880).signedMMK == "+K 1,879,880", Decimal(1879880).signedMMK)
+        check("总进价构成 = 进价折缅币 + 运费",
+              item.landedCost == item.costMMK + item.shipping,
+              "\(item.landedCost) vs \(item.costMMK + item.shipping)")
+
+        var noRate = IntakeDraft()
+        noRate.serialNumber = "NORATE01"
+        noRate.modelName = "MacBook Air M2"
+        noRate.costCNY = "100"
+        do {
+            _ = try InventoryService.intake(noRate, in: context)
+            check("缺汇率被拦截", false, "未抛错")
+        } catch {
+            check("缺汇率被拦截", true)
+        }
 
         // MARK: 金额大写
 
@@ -255,8 +273,8 @@ struct Verify {
         check("PDF 含标题", content.contains("销售凭证"))
         check("PDF 含序列号", content.contains("C02ABC123"), content.prefix(80).description)
         check("PDF 含客户", content.contains("张三"))
-        check("PDF 含合计金额", content.contains("8,999"))
-        check("PDF 含大写金额", content.contains("捌仟玖佰玖拾玖元整"))
+        check("PDF 含合计金额", content.contains("2,300,000"))
+        check("PDF 含大写金额", content.contains("贰佰叁拾万元整"))
         check("PDF 不含成本字样", !content.contains("进价") && !content.contains("毛利"))
 
         // MARK: 照片压缩
@@ -280,11 +298,10 @@ struct Verify {
 
         var voidDraft = IntakeDraft()
         voidDraft.serialNumber = "VOID001"
-        voidDraft.modelName = "iPhone 18"
-        voidDraft.costAmount = "5000"
-        voidDraft.currency = .cny
+        voidDraft.modelName = "MacBook Pro 14\" M3 Pro"
+        voidDraft.costCNY = "5000"
         voidDraft.exchangeRate = "1"
-        voidDraft.listPriceCNY = "6999"
+        voidDraft.listPrice = "6999"
         let voidItem = try InventoryService.intake(voidDraft, in: context)
         let voidOrder = try InventoryService.sell(
             items: [voidItem], unitPrice: 6999,
@@ -294,10 +311,10 @@ struct Verify {
         check("撤销前为已售", voidItem.status == .sold)
         try OrderService.void(voidOrder, in: context)
         check("撤销后回到在库", voidItem.status == .inStock)
-        check("撤销后清空成交价", voidItem.soldPriceCNY == 0)
+        check("撤销后清空成交价", voidItem.soldPrice == 0)
         check("撤销后清空售出时间", voidItem.soldAt == nil)
         check("撤销后解除单据关联", voidItem.order == nil)
-        check("单据标记作废但保留", voidOrder.voidedAt != nil && voidOrder.totalCNY == 6999)
+        check("单据标记作废但保留", voidOrder.voidedAt != nil && voidOrder.total == 6999)
 
         do {
             try OrderService.void(voidOrder, in: context)
@@ -326,24 +343,22 @@ struct Verify {
         let srcBatch = Batch()
         srcBatch.name = "备份批"
         srcBatch.supplier = "深圳"
-        srcBatch.currency = .usd
-        srcBatch.exchangeRate = 7.1234
-        srcBatch.totalShippingCNY = 333.33
+        srcBatch.exchangeRate = 412.5
+        srcBatch.totalShipping = 333.33
         srcBatch.allocation = .byValue
         source.insert(srcBatch)
 
         for (index, cost) in ["1234.56", "987.65", "0.01"].enumerated() {
             var d = IntakeDraft()
             d.serialNumber = "BKP00\(index)"
-            d.modelName = "iPhone 17"
+            d.modelName = "MacBook Air M2"
             d.memory = "8GB"
             d.storage = "256GB"
             d.color = "深空黑"
-            d.costAmount = cost
-            d.currency = .usd
-            d.exchangeRate = "7.1234"
-            d.shippingCNY = "0"
-            d.listPriceCNY = "8999.99"
+            d.costCNY = cost
+            d.exchangeRate = "412.5"
+            d.shipping = "0"
+            d.listPrice = "8999.99"
             _ = try InventoryService.intake(d, batch: srcBatch, in: source)
         }
         try source.save()
@@ -357,8 +372,8 @@ struct Verify {
         let expectedItemCount = try source.fetchCount(FetchDescriptor<Item>())
         let expectedOrderCount = try source.fetchCount(FetchDescriptor<Order>())
         let expectedBatchCount = try source.fetchCount(FetchDescriptor<Batch>())
-        let expectedCost = try source.fetch(FetchDescriptor<Item>()).reduce(Decimal(0)) { $0 + $1.landedCostCNY }
-        let expectedRevenue = try source.fetch(FetchDescriptor<Item>()).reduce(Decimal(0)) { $0 + $1.soldPriceCNY }
+        let expectedCost = try source.fetch(FetchDescriptor<Item>()).reduce(Decimal(0)) { $0 + $1.landedCost }
+        let expectedRevenue = try source.fetch(FetchDescriptor<Item>()).reduce(Decimal(0)) { $0 + $1.soldPrice }
         let expectedSerials = Set(try source.fetch(FetchDescriptor<Item>()).map(\.serialNumber))
 
         let snapshot = try BackupService.makeSnapshot(from: source)
@@ -374,13 +389,13 @@ struct Verify {
 
         // 精确到分：这是 P0 的核心验收
         let restoredItemA = restored.items.first { $0.serialNumber == "BKP000" }!
-        check("金额字符串无损 1234.56", restoredItemA.costAmount == "1234.56", restoredItemA.costAmount)
+        check("金额字符串无损 1234.56", restoredItemA.costCNY == "1234.56", restoredItemA.costCNY)
         let restoredItemC = restored.items.first { $0.serialNumber == "BKP002" }!
-        check("小额 0.01 无损", restoredItemC.costAmount == "0.01", restoredItemC.costAmount)
+        check("小额 0.01 无损", restoredItemC.costCNY == "0.01", restoredItemC.costCNY)
         let restoredOrder = restored.orders.first!
-        check("成交价无损 8888.88", restoredOrder.totalCNY == "8888.88", restoredOrder.totalCNY)
+        check("成交价无损 8888.88", restoredOrder.total == "8888.88", restoredOrder.total)
         check("单据关联序列号", restoredOrder.itemSerials == ["BKP000"], "\(restoredOrder.itemSerials)")
-        check("毛利字段非空", !restoredOrder.profitCNY.isEmpty)
+        check("毛利字段非空", !restoredOrder.profit.isEmpty)
 
         // 回灌到空库
         let targetConfig = ModelConfiguration(schema: backupSchema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
@@ -392,17 +407,17 @@ struct Verify {
         check("恢复后台数一致", restoredItems.count == expectedItemCount, "\(restoredItems.count)")
         check("恢复后序列号集合一致", Set(restoredItems.map(\.serialNumber)) == expectedSerials)
         check("恢复后落地成本合计一致",
-              restoredItems.reduce(Decimal(0)) { $0 + $1.landedCostCNY } == expectedCost,
-              "\(restoredItems.reduce(Decimal(0)) { $0 + $1.landedCostCNY }) vs \(expectedCost)")
+              restoredItems.reduce(Decimal(0)) { $0 + $1.landedCost } == expectedCost,
+              "\(restoredItems.reduce(Decimal(0)) { $0 + $1.landedCost }) vs \(expectedCost)")
         check("恢复后成交额合计一致",
-              restoredItems.reduce(Decimal(0)) { $0 + $1.soldPriceCNY } == expectedRevenue)
+              restoredItems.reduce(Decimal(0)) { $0 + $1.soldPrice } == expectedRevenue)
 
         let restoredSoldItem = restoredItems.first { $0.serialNumber == "BKP000" }!
         check("恢复后状态为已售", restoredSoldItem.status == .sold)
         check("恢复后单据挂回机器", restoredSoldItem.order?.number == soldOrder.number)
         check("恢复后批次挂回机器", restoredSoldItem.batch?.name == "备份批")
         check("恢复后汇率保留四位",
-              restoredSoldItem.batch?.exchangeRate == Decimal(string: "7.1234"),
+              restoredSoldItem.batch?.exchangeRate == Decimal(string: "412.5"),
               "\(String(describing: restoredSoldItem.batch?.exchangeRate))")
 
         // 恢复必须覆盖而不是叠加
@@ -423,7 +438,7 @@ struct Verify {
         let csv = try BackupService.csvData(from: source)
         let csvText = String(decoding: csv, as: UTF8.self)
         check("CSV 带 BOM 供 Excel 识别", csvText.hasPrefix("\u{FEFF}"))
-        check("CSV 含表头", csvText.contains("序列号") && csvText.contains("落地成本"))
+        check("CSV 含表头", csvText.contains("序列号") && csvText.contains("总进价(缅币)"))
         // split 会丢掉末尾的空段，所以行数 = 表头 + 机器数
         check("CSV 行数 = 表头 + 机器数",
               csvText.split(separator: "\r\n").count == expectedItemCount + 1,
@@ -469,9 +484,9 @@ struct Verify {
 
         func p1Item(_ serial: String, cost: Decimal, list: Decimal) -> Item {
             let item = Item(
-                serialNumber: serial, modelName: "iPhone 17",
-                costAmount: cost, currency: .cny, exchangeRate: 1,
-                shippingCNY: 0, listPriceCNY: list
+                serialNumber: serial, modelName: "MacBook Air M2",
+                costCNY: cost, exchangeRate: 1,
+                shipping: 0, listPrice: list
             )
             p1.insert(item)
             return item
@@ -489,7 +504,7 @@ struct Verify {
                 .init(item: c, price: Decimal(string: "4200")!),
             ],
             customerName: "赵六", customerContact: "",
-            discountCNY: 200, roundingCNY: 88, paymentMethod: .transfer,
+            discount: 200, rounding: 88, paymentMethod: .transfer,
             in: p1
         )
 
@@ -497,13 +512,13 @@ struct Verify {
               p1Order.number.hasPrefix("SO-\(Calendar.current.component(.year, from: .now))-"),
               p1Order.number)
         check("首单序号为 0001", p1Order.number.hasSuffix("-0001"), p1Order.number)
-        check("小计 = 16500", p1Order.subtotalCNY == 16500, "\(p1Order.subtotalCNY)")
-        check("应收 = 16500-200-88 = 16212", p1Order.totalCNY == 16212, "\(p1Order.totalCNY)")
-        check("毛利计入折扣", p1Order.profitCNY == 16212 - 12000, "\(p1Order.profitCNY)")
+        check("小计 = 16500", p1Order.subtotal == 16500, "\(p1Order.subtotal)")
+        check("应收 = 16500-200-88 = 16212", p1Order.total == 16212, "\(p1Order.total)")
+        check("毛利计入折扣", p1Order.profit == 16212 - 12000, "\(p1Order.profit)")
         check("收款方式保存", p1Order.paymentMethod == .transfer)
         check("逐台价格分别写入",
-              a.soldPriceCNY == 6800 && b.soldPriceCNY == 5500 && c.soldPriceCNY == 4200,
-              "\(a.soldPriceCNY)/\(b.soldPriceCNY)/\(c.soldPriceCNY)")
+              a.soldPrice == 6800 && b.soldPrice == 5500 && c.soldPrice == 4200,
+              "\(a.soldPrice)/\(b.soldPrice)/\(c.soldPrice)")
 
         // 第二单、第三单必须连号
         for serial in ["P1D", "P1E"] {
@@ -511,7 +526,7 @@ struct Verify {
             let order = try InventoryService.sell(
                 lines: [.init(item: item, price: 2000)],
                 customerName: "", customerContact: "",
-                discountCNY: 0, roundingCNY: 0, paymentMethod: .cash, in: p1
+                discount: 0, rounding: 0, paymentMethod: .cash, in: p1
             )
             _ = order
         }
@@ -526,7 +541,7 @@ struct Verify {
             _ = try InventoryService.sell(
                 lines: [.init(item: over, price: 100)],
                 customerName: "", customerContact: "",
-                discountCNY: 200, roundingCNY: 0, paymentMethod: .cash, in: p1
+                discount: 200, rounding: 0, paymentMethod: .cash, in: p1
             )
             check("折扣超小计被拦截", false, "未抛错")
         } catch {
@@ -609,20 +624,20 @@ struct Verify {
         try BackupService.restore(p1Decoded, into: p1Target)
 
         let restoredOrders = try p1Target.fetch(FetchDescriptor<Order>(sortBy: [SortDescriptor(\.sequenceNumber)]))
-        check("备份保住折扣", restoredOrders.first?.discountCNY == 200, "\(String(describing: restoredOrders.first?.discountCNY))")
-        check("备份保住抹零", restoredOrders.first?.roundingCNY == 88, "\(String(describing: restoredOrders.first?.roundingCNY))")
-        check("备份保住应收", restoredOrders.first?.totalCNY == 16212)
+        check("备份保住折扣", restoredOrders.first?.discount == 200, "\(String(describing: restoredOrders.first?.discount))")
+        check("备份保住抹零", restoredOrders.first?.rounding == 88, "\(String(describing: restoredOrders.first?.rounding))")
+        check("备份保住应收", restoredOrders.first?.total == 16212)
         check("备份保住收款方式", restoredOrders.first?.paymentMethod == .transfer)
         check("备份保住单号序号", restoredOrders.first?.sequenceNumber == 1, "\(String(describing: restoredOrders.first?.sequenceNumber))")
         check("备份保住单号文本", restoredOrders.first?.number.hasSuffix("-0001") == true)
 
         // 恢复后继续下单必须接着 0002，不能重号
-        let nextItem = Item(serialNumber: "P1G", modelName: "iPhone 17", costAmount: 100, currency: .cny, exchangeRate: 1, shippingCNY: 0, listPriceCNY: 200)
+        let nextItem = Item(serialNumber: "P1G", modelName: "MacBook Air M2", costCNY: 100, exchangeRate: 1, shipping: 0, listPrice: 200)
         p1Target.insert(nextItem)
         let nextOrder = try InventoryService.sell(
             lines: [.init(item: nextItem, price: 200)],
             customerName: "", customerContact: "",
-            discountCNY: 0, roundingCNY: 0, paymentMethod: .cash, in: p1Target
+            discount: 0, rounding: 0, paymentMethod: .cash, in: p1Target
         )
         check("恢复后新单不重号",
               nextOrder.number.hasSuffix("-0004"),
@@ -637,29 +652,29 @@ struct Verify {
         let csvContext = csvContainer.mainContext
 
         // 解析器本身：引号、逗号、转义、CRLF、BOM
-        let tricky = "\u{FEFF}序列号,型号,颜色\r\nA1,\"iPhone 17, Pro\",\"深空\"\"黑\"\r\nA2,iPhone 16,银色\r\n"
+        let tricky = "\u{FEFF}序列号,型号,颜色\r\nA1,\"MacBook Air M2, Pro\",\"深空\"\"黑\"\r\nA2,MacBook Air M1,银色\r\n"
         let trickyRows = CSVImporter.parseRows(tricky)
         check("CSV 去 BOM", trickyRows.first?.first == "序列号", "\(String(describing: trickyRows.first?.first))")
-        check("CSV 字段内逗号", trickyRows[1][1] == "iPhone 17, Pro", trickyRows[1][1])
+        check("CSV 字段内逗号", trickyRows[1][1] == "MacBook Air M2, Pro", trickyRows[1][1])
         check("CSV 双引号转义", trickyRows[1][2] == "深空\"黑", trickyRows[1][2])
         check("CSV 行数正确", trickyRows.count == 3, "\(trickyRows.count)")
 
         // 100 行含 3 行错误
-        var lines: [String] = ["序列号,型号,存储,成色,进价,币种,汇率,运费,标价"]
+        var lines: [String] = ["序列号,型号,存储,成色,进价,汇率,运费,标价"]
         var errorLines: [Int] = []
         for index in 1...100 {
             let line = index + 1
             if index == 7 {
-                lines.append(",iPhone 17,256GB,95新,1000,CNY,1,0,6999")        // 序列号为空
+                lines.append(",MacBook Air M2,256GB,95新,1000,1,0,6999")         // 序列号为空
                 errorLines.append(line)
             } else if index == 23 {
-                lines.append("IMP023,iPhone 17,256GB,95新,abc,CNY,1,0,6999")   // 进价非法
+                lines.append("IMP023,MacBook Air M2,256GB,95新,abc,1,0,6999")    // 进价非法
                 errorLines.append(line)
             } else if index == 88 {
-                lines.append("IMP001,iPhone 17,256GB,95新,1000,CNY,1,0,6999")  // 与第 2 行重复
+                lines.append("IMP001,MacBook Air M2,256GB,95新,1000,1,0,6999")   // 与第 2 行重复
                 errorLines.append(line)
             } else {
-                lines.append(String(format: "IMP%03d,iPhone 17,256GB,95新,1000,CNY,1.5,20,6999", index))
+                lines.append(String(format: "IMP%03d,MacBook Air M2,256GB,95新,1000,1.5,20,6999", index))
             }
         }
         let importCSVText = lines.joined(separator: "\n")
@@ -684,9 +699,9 @@ struct Verify {
         let importedItem = try csvContext.fetch(
             FetchDescriptor<Item>(predicate: #Predicate { $0.serialNumber == "IMP002" })
         ).first
-        check("落地成本 = 1000×1.5+20", importedItem?.landedCostCNY == 1520,
-              "\(String(describing: importedItem?.landedCostCNY))")
-        check("标价导入正确", importedItem?.listPriceCNY == 6999)
+        check("总进价 = 1000×1.5+20", importedItem?.landedCost == 1520,
+              "\(String(describing: importedItem?.landedCost))")
+        check("标价导入正确", importedItem?.listPrice == 6999)
         check("成色导入正确", importedItem?.condition == .p95)
         check("状态默认为在库", importedItem?.status == .inStock)
         check("错误行未入库",
@@ -700,16 +715,16 @@ struct Verify {
         check("重复导入报 100 行冲突", secondPreview.issues.count == 100, "\(secondPreview.issues.count)")
 
         // 缺必需列
-        let badHeader = "型号,存储\niPhone 17,256GB\n"
+        let badHeader = "型号,存储\nMacBook Air M2,256GB\n"
         let badPreview = CSVImporter.preview(csv: Data(badHeader.utf8), in: csvContext)
         check("缺列直接拒绝", badPreview.rows.isEmpty && badPreview.issues.count == 1)
 
-        // 成色与币种非法
-        let wrongValues = "序列号,型号,进价,成色,币种\nX1,iPhone 17,1000,九五新,CNY\nX2,iPhone 17,1000,95新,RMB\n"
+        // 成色非法 + 汇率为 0
+        let wrongValues = "序列号,型号,进价,成色,汇率\nX1,MacBook Air M2,1000,九五新,420\nX2,MacBook Air M2,1000,95新,0\n"
         let wrongPreview = CSVImporter.preview(csv: Data(wrongValues.utf8), in: csvContext)
         check("非法成色被拦", wrongPreview.issues.contains { $0.field == "成色" })
-        check("非法币种被拦", wrongPreview.issues.contains { $0.field == "币种" })
-        check("合法行仍可通过", wrongPreview.rows.count == 0)
+        check("汇率为 0 被拦", wrongPreview.issues.contains { $0.field == "汇率" })
+        check("无可用行", wrongPreview.rows.count == 0)
 
         // 错误清单可导出
         let issueCSV = String(decoding: CSVImporter.issuesCSV(csvPreview.issues), as: UTF8.self)
@@ -719,18 +734,17 @@ struct Verify {
         // 带批次导入会重算分摊
         let importBatch = Batch()
         importBatch.name = "导入批"
-        importBatch.currency = .cny
         importBatch.exchangeRate = 1
-        importBatch.totalShippingCNY = 100
+        importBatch.totalShipping = 100
         importBatch.allocation = .byCount
         csvContext.insert(importBatch)
 
-        let batchCSV = "序列号,型号,进价,汇率\nBATCH1,iPhone 17,1000,1\nBATCH2,iPhone 17,1000,1\n"
+        let batchCSV = "序列号,型号,进价,汇率\nBATCH1,MacBook Air M2,1000,1\nBATCH2,MacBook Air M2,1000,1\n"
         let batchPreview = CSVImporter.preview(csv: Data(batchCSV.utf8), in: csvContext)
         _ = try CSVImporter.commit(batchPreview, batch: importBatch, in: csvContext)
         check("导入进批次后运费分摊",
-              importBatch.itemList.reduce(Decimal(0)) { $0 + $1.shippingCNY } == 100,
-              "\(importBatch.itemList.reduce(Decimal(0)) { $0 + $1.shippingCNY })")
+              importBatch.itemList.reduce(Decimal(0)) { $0 + $1.shipping } == 100,
+              "\(importBatch.itemList.reduce(Decimal(0)) { $0 + $1.shipping })")
 
 
         // MARK: P2 部分退货
@@ -741,8 +755,8 @@ struct Verify {
         let p2 = p2Container.mainContext
 
         func p2Item(_ serial: String, cost: Decimal, list: Decimal) -> Item {
-            let item = Item(serialNumber: serial, modelName: "iPhone 17", costAmount: cost,
-                            currency: .cny, exchangeRate: 1, shippingCNY: 0, listPriceCNY: list)
+            let item = Item(serialNumber: serial, modelName: "MacBook Air M2", costCNY: cost,
+                            exchangeRate: 1, shipping: 0, listPrice: list)
             p2.insert(item)
             return item
         }
@@ -754,38 +768,38 @@ struct Verify {
         let rOrder = try InventoryService.sell(
             lines: [.init(item: r1, price: 6800), .init(item: r2, price: 5500), .init(item: r3, price: 4200)],
             customerName: "钱七", customerContact: "13700001111",
-            discountCNY: 200, roundingCNY: 88, paymentMethod: .cash, in: p2
+            discount: 200, rounding: 88, paymentMethod: .cash, in: p2
         )
-        check("退货前应收 16212", rOrder.totalCNY == 16212, "\(rOrder.totalCNY)")
-        check("退货前毛利 4212", rOrder.profitCNY == 4212, "\(rOrder.profitCNY)")
+        check("退货前应收 16212", rOrder.total == 16212, "\(rOrder.total)")
+        check("退货前毛利 4212", rOrder.profit == 4212, "\(rOrder.profit)")
 
         // 退一台 4200 的
         let refund = try OrderService.returnItems([r3], from: rOrder, in: p2)
         check("退回金额 = 该台成交价", refund == 4200, "\(refund)")
         check("退后剩余两台", rOrder.itemList.count == 2, "\(rOrder.itemList.count)")
-        check("退后小计 12300", rOrder.subtotalCNY == 12300, "\(rOrder.subtotalCNY)")
+        check("退后小计 12300", rOrder.subtotal == 12300, "\(rOrder.subtotal)")
 
         let expectedDiscountRatio = (Decimal(12300) / Decimal(16500)).rounded(6)
         let expectedDiscount = (Decimal(200) * expectedDiscountRatio).rounded(2)
         let expectedRounding = (Decimal(88) * expectedDiscountRatio).rounded(2)
-        check("折扣按比例保留", rOrder.discountCNY == expectedDiscount,
-              "\(rOrder.discountCNY) vs \(expectedDiscount)")
-        check("抹零按比例保留", rOrder.roundingCNY == expectedRounding,
-              "\(rOrder.roundingCNY) vs \(expectedRounding)")
+        check("折扣按比例保留", rOrder.discount == expectedDiscount,
+              "\(rOrder.discount) vs \(expectedDiscount)")
+        check("抹零按比例保留", rOrder.rounding == expectedRounding,
+              "\(rOrder.rounding) vs \(expectedRounding)")
         check("退后应收 = 小计-折扣-抹零",
-              rOrder.totalCNY == (Decimal(12300) - rOrder.discountCNY - rOrder.roundingCNY).rounded(2),
-              "\(rOrder.totalCNY)")
+              rOrder.total == (Decimal(12300) - rOrder.discount - rOrder.rounding).rounded(2),
+              "\(rOrder.total)")
         check("退后毛利按剩余成本重算",
-              rOrder.profitCNY == (rOrder.totalCNY - 9000).rounded(2),
-              "\(rOrder.profitCNY)")
+              rOrder.profit == (rOrder.total - 9000).rounded(2),
+              "\(rOrder.profit)")
         check("退货台数累计", rOrder.returnedCount == 1)
-        check("退货金额累计", rOrder.returnedAmountCNY == 4200)
+        check("退货金额累计", rOrder.returnedAmount == 4200)
         check("单据仍有效", !rOrder.isVoided)
         check("状态显示部分退货", rOrder.statusLabel == "部分退货", rOrder.statusLabel)
 
         // 退回的机器应回到在库且清空成交信息
         check("退回机器回到在库", r3.status == .inStock)
-        check("退回机器清空成交价", r3.soldPriceCNY == 0)
+        check("退回机器清空成交价", r3.soldPrice == 0)
         check("退回机器解除单据关联", r3.order == nil)
         check("退回机器清空售出时间", r3.soldAt == nil)
 
@@ -800,9 +814,9 @@ struct Verify {
 
         // 全部退完：应收精确归零
         _ = try OrderService.returnItems([r1, r2], from: rOrder, in: p2)
-        check("全退后应收归零", rOrder.totalCNY == 0, "\(rOrder.totalCNY)")
-        check("全退后毛利归零", rOrder.profitCNY == 0, "\(rOrder.profitCNY)")
-        check("全退后折扣归零", rOrder.discountCNY == 0 && rOrder.roundingCNY == 0)
+        check("全退后应收归零", rOrder.total == 0, "\(rOrder.total)")
+        check("全退后毛利归零", rOrder.profit == 0, "\(rOrder.profit)")
+        check("全退后折扣归零", rOrder.discount == 0 && rOrder.rounding == 0)
         check("全退后标记作废", rOrder.isVoided)
         check("全退状态可区分", rOrder.statusLabel == "已全退", rOrder.statusLabel)
         check("全退后库存全部恢复",
@@ -820,9 +834,9 @@ struct Verify {
         let soloItem = p2Item("SOLO", cost: 1000, list: 2000)
         let soloOrder = try InventoryService.sell(
             lines: [.init(item: soloItem, price: 2000)], customerName: "无关客户",
-            customerContact: "", discountCNY: 0, roundingCNY: 0, paymentMethod: .cash, in: p2
+            customerContact: "", discount: 0, rounding: 0, paymentMethod: .cash, in: p2
         )
-        check("其他单据不受影响", soloOrder.totalCNY == 2000 && !soloOrder.isVoided)
+        check("其他单据不受影响", soloOrder.total == 2000 && !soloOrder.isVoided)
 
         // 统计口径：退货后收入按净额
         let p2Stats = InventoryStatistics(
@@ -850,8 +864,8 @@ struct Verify {
             .first { $0.number == rOrder.number }
         check("备份保住退货台数", restoredReturned?.returnedCount == 3,
               "\(String(describing: restoredReturned?.returnedCount))")
-        check("备份保住退货金额", restoredReturned?.returnedAmountCNY == Decimal(string: "16500")!,
-              "\(String(describing: restoredReturned?.returnedAmountCNY))")
+        check("备份保住退货金额", restoredReturned?.returnedAmount == Decimal(string: "16500")!,
+              "\(String(describing: restoredReturned?.returnedAmount))")
         check("备份保住作废状态", restoredReturned?.isVoided == true)
 
 
@@ -862,9 +876,9 @@ struct Verify {
         let dContainer = try ModelContainer(for: dSchema, configurations: [dConfig])
         let d = dContainer.mainContext
 
-        let victim = Item(serialNumber: "TYPO001", modelName: "iPhone 17",
-                          costAmount: 100, currency: .cny, exchangeRate: 1,
-                          shippingCNY: 0, listPriceCNY: 200)
+        let victim = Item(serialNumber: "TYPO001", modelName: "MacBook Air M2",
+                          costCNY: 100, exchangeRate: 1,
+                          shipping: 0, listPrice: 200)
         d.insert(victim)
         try d.save()
 
@@ -874,13 +888,13 @@ struct Verify {
               "\(try d.fetchCount(FetchDescriptor<Item>()))")
 
         // 已售出的机器不能直接删
-        let soldItem = Item(serialNumber: "SOLD001", modelName: "iPhone 17",
-                            costAmount: 100, currency: .cny, exchangeRate: 1,
-                            shippingCNY: 0, listPriceCNY: 200)
+        let soldItem = Item(serialNumber: "SOLD001", modelName: "MacBook Air M2",
+                            costCNY: 100, exchangeRate: 1,
+                            shipping: 0, listPrice: 200)
         d.insert(soldItem)
         _ = try InventoryService.sell(
             lines: [.init(item: soldItem, price: 200)], customerName: "", customerContact: "",
-            discountCNY: 0, roundingCNY: 0, paymentMethod: .cash, in: d
+            discount: 0, rounding: 0, paymentMethod: .cash, in: d
         )
         do {
             try InventoryService.delete(soldItem, in: d)
@@ -892,9 +906,9 @@ struct Verify {
               "\(try d.fetchCount(FetchDescriptor<Item>()))")
 
         // 删除后序列号可重新入库
-        let again = Item(serialNumber: "TYPO001", modelName: "iPhone 17",
-                         costAmount: 100, currency: .cny, exchangeRate: 1,
-                         shippingCNY: 0, listPriceCNY: 200)
+        let again = Item(serialNumber: "TYPO001", modelName: "MacBook Air M2",
+                         costCNY: 100, exchangeRate: 1,
+                         shipping: 0, listPrice: 200)
         d.insert(again)
         try d.save()
         check("删除后同序列号可重新入库", !InventoryService.serialExists("TYPO001X", in: d))
@@ -914,7 +928,7 @@ struct Verify {
         let printDoc = ReceiptDocument(
             number: "SO-2026-0009", issuedAt: .now, customerName: "打印测试",
             customerContact: "", lines: [
-                .init(modelName: "iPhone 17", serialNumber: "PRINT001",
+                .init(modelName: "MacBook Air M2", serialNumber: "PRINT001",
                       spec: "8GB 256GB", condition: "95新", price: 6999)
             ]
         )
@@ -942,8 +956,8 @@ struct Verify {
         let dash = dashContainer.mainContext
 
         func dashItem(_ serial: String, cost: Decimal, list: Decimal) -> Item {
-            let item = Item(serialNumber: serial, modelName: "iPhone 17", costAmount: cost,
-                            currency: .cny, exchangeRate: 1, shippingCNY: 0, listPriceCNY: list)
+            let item = Item(serialNumber: serial, modelName: "MacBook Air M2", costCNY: cost,
+                            exchangeRate: 1, shipping: 0, listPrice: list)
             dash.insert(item)
             return item
         }
@@ -951,13 +965,13 @@ struct Verify {
         // 今天两单（不同收款方式），一单作废
         let d1 = dashItem("DSH1", cost: 3000, list: 5000)
         _ = try InventoryService.sell(lines: [.init(item: d1, price: 5000)], customerName: "甲", customerContact: "",
-                                      discountCNY: 0, roundingCNY: 0, paymentMethod: .cash, in: dash)
+                                      discount: 0, rounding: 0, paymentMethod: .cash, in: dash)
         let d2 = dashItem("DSH2", cost: 4000, list: 6000)
         _ = try InventoryService.sell(lines: [.init(item: d2, price: 6000)], customerName: "乙", customerContact: "",
-                                      discountCNY: 0, roundingCNY: 0, paymentMethod: .transfer, in: dash)
+                                      discount: 0, rounding: 0, paymentMethod: .transfer, in: dash)
         let d3 = dashItem("DSH3", cost: 1000, list: 2000)
         let voided = try InventoryService.sell(lines: [.init(item: d3, price: 2000)], customerName: "丙", customerContact: "",
-                                               discountCNY: 0, roundingCNY: 0, paymentMethod: .card, in: dash)
+                                               discount: 0, rounding: 0, paymentMethod: .card, in: dash)
         try OrderService.void(voided, in: dash)
 
         // 一台成本高于标价（用于低于成本告警）
@@ -1005,30 +1019,30 @@ struct Verify {
         let cus = cusContainer.mainContext
 
         func cusItem(_ serial: String) -> Item {
-            let item = Item(serialNumber: serial, modelName: "iPhone 17", costAmount: 1000,
-                            currency: .cny, exchangeRate: 1, shippingCNY: 0, listPriceCNY: 2000)
+            let item = Item(serialNumber: serial, modelName: "MacBook Air M2", costCNY: 1000,
+                            exchangeRate: 1, shipping: 0, listPrice: 2000)
             cus.insert(item)
             return item
         }
 
         _ = try InventoryService.sell(lines: [.init(item: cusItem("C1"), price: 2000)],
                                       customerName: "张三", customerContact: "13800000000",
-                                      discountCNY: 0, roundingCNY: 0, paymentMethod: .cash, in: cus)
+                                      discount: 0, rounding: 0, paymentMethod: .cash, in: cus)
         _ = try InventoryService.sell(lines: [.init(item: cusItem("C2"), price: 3000)],
                                       customerName: "张三", customerContact: "13800000000",
-                                      discountCNY: 0, roundingCNY: 0, paymentMethod: .cash, in: cus)
+                                      discount: 0, rounding: 0, paymentMethod: .cash, in: cus)
         // 同名不同电话，必须算两个人
         _ = try InventoryService.sell(lines: [.init(item: cusItem("C3"), price: 1500)],
                                       customerName: "张三", customerContact: "13900000000",
-                                      discountCNY: 0, roundingCNY: 0, paymentMethod: .cash, in: cus)
+                                      discount: 0, rounding: 0, paymentMethod: .cash, in: cus)
         // 散客（无姓名），不进客户列表
         _ = try InventoryService.sell(lines: [.init(item: cusItem("C4"), price: 2500)],
                                       customerName: "", customerContact: "",
-                                      discountCNY: 0, roundingCNY: 0, paymentMethod: .cash, in: cus)
+                                      discount: 0, rounding: 0, paymentMethod: .cash, in: cus)
         // 作废单不计入客户
         let voidCustomerOrder = try InventoryService.sell(lines: [.init(item: cusItem("C5"), price: 4000)],
                                                           customerName: "李四", customerContact: "13700000000",
-                                                          discountCNY: 0, roundingCNY: 0, paymentMethod: .cash, in: cus)
+                                                          discount: 0, rounding: 0, paymentMethod: .cash, in: cus)
         try OrderService.void(voidCustomerOrder, in: cus)
 
         let customerOrders = try cus.fetch(FetchDescriptor<Order>())

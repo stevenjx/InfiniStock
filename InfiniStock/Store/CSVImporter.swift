@@ -15,11 +15,10 @@ enum CSVImporter {
         let storage: String
         let color: String
         let condition: ItemCondition
-        let currency: CostCurrency
-        let costAmount: Decimal
+        let costCNY: Decimal
         let exchangeRate: Decimal
-        let shippingCNY: Decimal
-        let listPriceCNY: Decimal
+        let shipping: Decimal
+        let listPrice: Decimal
     }
 
     struct Issue: Identifiable {
@@ -44,10 +43,9 @@ enum CSVImporter {
         "存储": "storage", "storage": "storage", "capacity": "storage",
         "颜色": "color", "color": "color",
         "成色": "condition", "condition": "condition", "grade": "condition",
-        "进价": "cost", "cost": "cost", "costamount": "cost",
-        "币种": "currency", "currency": "currency",
+        "进价": "cost", "进价(人民币)": "cost", "cost": "cost", "costamount": "cost",
         "汇率": "rate", "rate": "rate", "exchangerate": "rate",
-        "运费": "shipping", "shipping": "shipping",
+        "运费": "shipping", "运费(缅币)": "shipping", "shipping": "shipping",
         "标价": "list", "list": "list", "listprice": "list", "售价": "list",
     ]
 
@@ -121,8 +119,6 @@ enum CSVImporter {
 
             let condition = parseCondition(value("condition"), line: line, issues: &issues)
             guard let condition else { continue }
-            let currency = parseCurrency(value("currency"), line: line, issues: &issues)
-            guard let currency else { continue }
 
             seenSerials[serial] = line
             plans.append(RowPlan(
@@ -134,11 +130,10 @@ enum CSVImporter {
                 storage: value("storage"),
                 color: value("color"),
                 condition: condition,
-                currency: currency,
-                costAmount: cost,
+                costCNY: cost,
                 exchangeRate: rate,
-                shippingCNY: shipping,
-                listPriceCNY: list
+                shipping: shipping,
+                listPrice: list
             ))
         }
 
@@ -165,11 +160,10 @@ enum CSVImporter {
                 storage: plan.storage,
                 color: plan.color,
                 condition: plan.condition,
-                costAmount: plan.costAmount,
-                currency: plan.currency,
+                costCNY: plan.costCNY,
                 exchangeRate: plan.exchangeRate,
-                shippingCNY: plan.shippingCNY,
-                listPriceCNY: plan.listPriceCNY
+                shipping: plan.shipping,
+                listPrice: plan.listPrice
             )
             item.batch = batch
             context.insert(item)
@@ -317,17 +311,6 @@ enum CSVImporter {
         issues.append(Issue(
             line: line, field: "成色",
             reason: "无法识别「\(trimmed)」，可选：\(ItemCondition.allCases.map(\.rawValue).joined(separator: " / "))"
-        ))
-        return nil
-    }
-
-    private static func parseCurrency(_ raw: String, line: Int, issues: inout [Issue]) -> CostCurrency? {
-        let trimmed = raw.trimmingCharacters(in: .whitespaces).uppercased()
-        if trimmed.isEmpty { return .cny }
-        if let matched = CostCurrency(rawValue: trimmed) { return matched }
-        issues.append(Issue(
-            line: line, field: "币种",
-            reason: "无法识别「\(trimmed)」，可选：\(CostCurrency.allCases.map(\.rawValue).joined(separator: " / "))"
         ))
         return nil
     }

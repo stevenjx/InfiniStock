@@ -19,7 +19,21 @@ struct IntakeSheet: View {
                 Section("机器") {
                     TextField("序列号", text: $draft.serialNumber)
                         .monospaced()
-                    TextField("型号（如 iPhone 17 Pro Max）", text: $draft.modelName)
+                    HStack(spacing: Token.Space.s) {
+                        TextField("型号（如 MacBook Air M2 13\"）", text: $draft.modelName)
+                        Menu("常用") {
+                            ForEach(MacCatalog.presets) { preset in
+                                Button(preset.label) {
+                                    draft.modelName = preset.modelName
+                                    draft.chip = preset.chip
+                                    draft.memory = preset.memory
+                                    draft.storage = preset.storage
+                                }
+                            }
+                        }
+                        .menuStyle(.borderlessButton)
+                        .fixedSize()
+                    }
                     TextField("芯片（可选）", text: $draft.chip)
                     TextField("内存（可选）", text: $draft.memory)
                     TextField("存储（可选）", text: $draft.storage)
@@ -42,22 +56,17 @@ struct IntakeSheet: View {
                 }
 
                 Section("成本") {
-                    TextField("进价", text: $draft.costAmount)
+                    TextField("进价（人民币 ¥）", text: $draft.costCNY)
                         .decimalKeyboard()
-                    Picker("币种", selection: $draft.currency) {
-                        ForEach(CostCurrency.allCases) { currency in
-                            Text(currency.rawValue).tag(currency)
-                        }
-                    }
-                    TextField("汇率（原币 → 人民币）", text: $draft.exchangeRate)
+                    TextField("汇率（1 元 = ? 缅币）", text: $draft.exchangeRate)
                         .decimalKeyboard()
-                    TextField("运费（人民币）", text: $draft.shippingCNY)
+                    TextField("运费（缅币 K）", text: $draft.shipping)
                         .decimalKeyboard()
-                    LabeledContent("落地成本", value: draft.previewLandedCost.cny)
+                    LabeledContent("总进价（缅币）", value: draft.previewLandedCost.mmk)
                 }
 
                 Section("定价") {
-                    TextField("标价", text: $draft.listPriceCNY)
+                    TextField("标价（缅币 K）", text: $draft.listPrice)
                         .decimalKeyboard()
                 }
 

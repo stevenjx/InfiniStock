@@ -8,14 +8,14 @@ final class Order {
     var customerName: String = ""
     var customerContact: String = ""
     /// 商品小计（各台成交价之和，已含逐台改价）
-    var subtotalCNY: Decimal = 0
+    var subtotal: Decimal = 0
     /// 折扣 + 抹零合计，正数表示从应收中减去
-    var discountCNY: Decimal = 0
+    var discount: Decimal = 0
     /// 抹零部分，仅用于凭证展示
-    var roundingCNY: Decimal = 0
+    var rounding: Decimal = 0
     /// 应收 = 小计 − 折扣
-    var totalCNY: Decimal = 0
-    var profitCNY: Decimal = 0
+    var total: Decimal = 0
+    var profit: Decimal = 0
     var paymentMethodRaw: String = PaymentMethod.cash.rawValue
     var createdAt: Date = Date()
     /// 作废时间；作废单保留以备审计，不会进入统计
@@ -28,7 +28,7 @@ final class Order {
     var sequenceNumber: Int = 0
 
     /// 累计退货金额与台数，仅用于凭证展示；应收与毛利已按净额重算
-    var returnedAmountCNY: Decimal = 0
+    var returnedAmount: Decimal = 0
     var returnedCount: Int = 0
 
     @Relationship(deleteRule: .nullify, inverse: \Item.order)

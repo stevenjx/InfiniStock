@@ -84,14 +84,14 @@ struct DashboardContent: View {
         ) {
             StatCard(
                 title: "今日销售额",
-                value: stats.todayRevenue.cny,
+                value: stats.todayRevenue.mmk,
                 systemImage: "cart.fill",
                 tone: .brand,
                 delta: "今日成交 \(stats.todayCount) 台"
             )
             StatCard(
                 title: "今日毛利",
-                value: stats.todayProfit.signedCNY,
+                value: stats.todayProfit.signedMMK,
                 systemImage: "chart.line.uptrend.xyaxis",
                 tone: stats.todayProfit < 0 ? .danger : .ok,
                 delta: stats.todayMarginRate.map { "毛利率 \(Money.text($0))%" },
@@ -107,10 +107,10 @@ struct DashboardContent: View {
             )
             StatCard(
                 title: "库存总值",
-                value: stats.stockCostValue.cny,
+                value: stats.stockCostValue.mmk,
                 systemImage: "banknote.fill",
                 tone: .warn,
-                delta: "标价合计 \(stats.stockListedValue.cny)"
+                delta: "标价合计 \(stats.stockListedValue.mmk)"
             )
         }
     }
@@ -120,7 +120,7 @@ struct DashboardContent: View {
         return SectionCard(title: "近 7 天销售额与毛利") {
             VStack(alignment: .leading, spacing: Token.Space.s) {
                 HStack(spacing: Token.Space.l) {
-                    Text("本周累计 销售额 \(summary.revenue.cny) · 毛利 \(summary.profit.signedCNY)")
+                    Text("本周累计 销售额 \(summary.revenue.mmk) · 毛利 \(summary.profit.signedMMK)")
                         .font(Token.Typography.caption)
                         .foregroundStyle(Token.Ink.secondary)
                     Spacer()
@@ -212,7 +212,7 @@ struct DashboardContent: View {
                             Text("\(bucket.count) 台")
                                 .font(Token.Typography.caption)
                                 .foregroundStyle(Token.Ink.primary)
-                            Text(bucket.value.cny)
+                            Text(bucket.value.mmk)
                                 .font(Token.Typography.caption)
                                 .foregroundStyle(Token.Ink.tertiary)
                                 .frame(width: 76, alignment: .trailing)
@@ -260,7 +260,7 @@ struct DashboardContent: View {
                             Text("\(slice.count) 笔")
                                 .font(Token.Typography.caption)
                                 .foregroundStyle(Token.Ink.primary)
-                            Text(slice.amount.cny)
+                            Text(slice.amount.mmk)
                                 .font(Token.Typography.caption)
                                 .foregroundStyle(Token.Ink.tertiary)
                                 .frame(width: 76, alignment: .trailing)
@@ -289,14 +289,14 @@ struct DashboardContent: View {
                     ForEach(stats.lowMarginItems.prefix(3)) { item in
                         AlertCard(
                             title: "低于成本 · \(item.modelName)",
-                            message: "标价 \(item.listPriceCNY.cny) 低于落地成本 \(item.landedCostCNY.cny)，每台亏 \((item.landedCostCNY - item.listPriceCNY).cny)，建议调价",
+                            message: "标价 \(item.listPrice.mmk) 低于总进价 \(item.landedCost.mmk)，每台亏 \((item.landedCost - item.listPrice).mmk)，建议调价",
                             tone: .danger
                         )
                     }
                     ForEach(stats.overdueItems.prefix(3)) { item in
                         AlertCard(
                             title: "库存超期 · \(item.modelName)",
-                            message: "在库 \(item.ageInDays) 天，占用成本 \(item.landedCostCNY.cny)，建议促销或调价",
+                            message: "在库 \(item.ageInDays) 天，占用成本 \(item.landedCost.mmk)，建议促销或调价",
                             tone: .warn
                         )
                     }

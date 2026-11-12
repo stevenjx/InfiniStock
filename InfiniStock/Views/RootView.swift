@@ -10,30 +10,20 @@ enum SidebarSection: Hashable {
 
     var label: String {
         switch self {
-        case .stock(let status):
-            switch status {
-            case .inStock: "在库"
-            case .sold: "已售"
-            case .locked: "锁定"
-            case nil: "全部"
-            }
-        case .orders: "单据"
-        case .batches: "批次"
-        case .customers: "客户"
+        case .stock(_):
+            "库存管理"
+        case .orders: "销售记录"
+        case .batches: "采购记录"
+        case .customers: "客户管理"
         }
     }
 
     var icon: String {
         switch self {
-        case .stock(let status):
-            switch status {
-            case .inStock: "shippingbox"
-            case .sold: "checkmark.seal"
-            case .locked: "lock"
-            case nil: "square.grid.2x2"
-            }
+        case .stock(_):
+            "shippingbox"
         case .orders: "doc.text"
-        case .batches: "shippingbox.and.arrow.backward"
+        case .batches: "cart"
         case .customers: "person.2"
         }
     }
@@ -187,13 +177,28 @@ struct RootView: View {
                 .padding(.top, Token.Space.m)
                 .padding(.bottom, Token.Space.m)
 
-            sectionBody(searchPresented: searchPresented)
-                .cardSurface()
+            bodyColumn(searchPresented: searchPresented)
                 .padding(.horizontal, Token.Space.l)
                 .padding(.bottom, Token.Space.l)
         }
         .background(Token.Surface.canvas)
         .navigationTitle("")
+    }
+
+    /// 销售页在卡片上方多一层 KPI 结论，其余页面直接是卡片。
+    @ViewBuilder
+    private func bodyColumn(searchPresented: Binding<Bool>) -> some View {
+        switch activeSection {
+        case .orders:
+            VStack(spacing: Token.Space.m) {
+                OrdersKpiStrip()
+                sectionBody(searchPresented: searchPresented)
+                    .cardSurface()
+            }
+        default:
+            sectionBody(searchPresented: searchPresented)
+                .cardSurface()
+        }
     }
 
     @ViewBuilder
@@ -221,36 +226,30 @@ struct RootView: View {
         switch activeSection {
         case .stock(let status):
             let pool = allItems.filter { status == nil || $0.status == status }
-            let cost = pool.reduce(Decimal(0)) { $0 + $1.landedCostCNY }
-            let listed = pool.reduce(Decimal(0)) { $0 + $1.listPriceCNY }
+            let cost = pool.reduce(Decimal(0)) { $0 + $1.landedCost }
+            let listed = pool.reduce(Decimal(0)) { $0 + $1.listPrice }
             return [
                 .init(label: status?.label ?? "全部", value: "\(pool.count) 台"),
-                .init(label: "成本", value: cost.cny),
-                .init(label: "标价", value: listed.cny),
+                .init(label: "成本", value: cost.mmk),
+                .init(label: "标价", value: listed.mmk),
             ]
         case .orders:
-            let valid = allOrders.filter { !$0.isVoided }
-            let revenue = valid.reduce(Decimal(0)) { $0 + $1.totalCNY }
-            let profit = valid.reduce(Decimal(0)) { $0 + $1.profitCNY }
-            return [
-                .init(label: "单据", value: "\(allOrders.count) 张"),
-                .init(label: "应收", value: revenue.cny),
-                .init(label: "毛利", value: profit.cny),
-            ]
+            // 金额已由页面上方的 KPI 卡承担，页头只留单据总数，避免两处报数
+            return [.init(label: "累计单据", value: "\(allOrders.count) 张")]
         case .batches:
             let cost = allBatches.reduce(Decimal(0)) { total, batch in
-                total + batch.itemList.reduce(Decimal(0)) { $0 + $1.landedCostCNY }
+                total + batch.itemList.reduce(Decimal(0)) { $0 + $1.landedCost }
             }
             return [
                 .init(label: "批次", value: "\(allBatches.count) 批"),
-                .init(label: "成本合计", value: cost.cny),
+                .init(label: "成本合计", value: cost.mmk),
             ]
         case .customers:
             let summaries = CustomerSummary.build(from: allOrders)
             let revenue = summaries.reduce(Decimal(0)) { $0 + $1.revenue }
             return [
                 .init(label: "客户", value: "\(summaries.count) 位"),
-                .init(label: "累计消费", value: revenue.cny),
+                .init(label: "累计消费", value: revenue.mmk),
             ]
         }
     }

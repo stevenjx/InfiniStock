@@ -13,10 +13,9 @@ enum CostAllocation {
 
         for item in items {
             item.exchangeRate = batch.exchangeRate
-            item.costCurrencyRaw = batch.currencyRaw
         }
 
-        let total = batch.totalShippingCNY
+        let total = batch.totalShipping
         var shares: [Decimal]
 
         switch batch.allocation {
@@ -25,7 +24,7 @@ enum CostAllocation {
             shares = Array(repeating: each, count: items.count)
 
         case .byValue:
-            let bases = items.map { baseCostCNY($0) }
+            let bases = items.map { baseCost($0) }
             let sum = bases.reduce(Decimal(0), +)
             if sum > 0 {
                 shares = bases.map { (($0 / sum) * total).rounded(2) }
@@ -49,17 +48,17 @@ enum CostAllocation {
         finalShares.append(tail)
 
         for (item, shipping) in zip(items, finalShares) {
-            item.shippingCNY = shipping
-            item.landedCostCNY = Money.landedCost(
-                amount: item.costAmount,
+            item.shipping = shipping
+            item.landedCost = Money.landedCost(
+                costCNY: item.costCNY,
                 rate: item.exchangeRate,
-                shippingCNY: shipping
+                shipping: shipping
             )
         }
     }
 
-    /// 进价折人民币（不含运费）
-    static func baseCostCNY(_ item: Item) -> Decimal {
-        (item.costAmount * item.exchangeRate).rounded(2)
+    /// 进价折缅币（不含运费）
+    static func baseCost(_ item: Item) -> Decimal {
+        (item.costCNY * item.exchangeRate).rounded(2)
     }
 }

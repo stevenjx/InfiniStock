@@ -135,29 +135,30 @@ struct ItemDetailContent: View {
             }
 
             PanelSection(title: "成本") {
-                KeyValueRow(label: "进价", value: "\(Money.text(item.costAmount)) \(item.currency.rawValue)")
-                KeyValueRow(label: "汇率", value: Money.text(item.exchangeRate))
-                KeyValueRow(label: "运费", value: item.shippingCNY.cny)
-                KeyValueRow(label: "落地成本", value: item.landedCostCNY.cny)
+                KeyValueRow(label: "进价", value: item.costCNY.cny)
+                KeyValueRow(label: "汇率", value: "1 元 = \(Money.text(item.exchangeRate)) 缅币")
+                KeyValueRow(label: "进价折缅币", value: item.costMMK.mmk)
+                KeyValueRow(label: "运费", value: item.shipping.mmk)
+                KeyValueRow(label: "总进价", value: item.landedCost.mmk)
                 if let batch = item.batch {
                     KeyValueRow(label: "批次", value: batch.name)
                 }
             }
 
             PanelSection(title: "价格") {
-                KeyValueRow(label: "标价", value: item.listPriceCNY.cny)
+                KeyValueRow(label: "标价", value: item.listPrice.mmk)
                 if item.status == .sold {
-                    KeyValueRow(label: "成交价", value: item.soldPriceCNY.cny)
+                    KeyValueRow(label: "成交价", value: item.soldPrice.mmk)
                     KeyValueRow(
                         label: "毛利",
-                        value: item.grossProfitCNY.signedCNY,
-                        valueTone: item.grossProfitCNY < 0 ? .danger : .ok
+                        value: item.grossProfit.signedMMK,
+                        valueTone: item.grossProfit < 0 ? .danger : .ok
                     )
                 } else {
-                    let expected = item.listPriceCNY - item.landedCostCNY
+                    let expected = item.listPrice - item.landedCost
                     KeyValueRow(
                         label: "预计毛利",
-                        value: expected.signedCNY,
+                        value: expected.signedMMK,
                         valueTone: expected < 0 ? .danger : .ok
                     )
                 }

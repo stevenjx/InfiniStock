@@ -38,7 +38,7 @@ struct InventoryStatistics {
     let lowMarginItems: [Item]
 
     var overdueValue: Decimal {
-        overdueItems.reduce(Decimal(0)) { $0 + $1.landedCostCNY }
+        overdueItems.reduce(Decimal(0)) { $0 + $1.landedCost }
     }
 
     var stockPotentialProfit: Decimal {
@@ -69,8 +69,8 @@ struct InventoryStatistics {
     ) {
         let inStock = items.filter { $0.status == .inStock }
         inStockCount = inStock.count
-        stockCostValue = inStock.reduce(Decimal(0)) { $0 + $1.landedCostCNY }
-        stockListedValue = inStock.reduce(Decimal(0)) { $0 + $1.listPriceCNY }
+        stockCostValue = inStock.reduce(Decimal(0)) { $0 + $1.landedCost }
+        stockListedValue = inStock.reduce(Decimal(0)) { $0 + $1.listPrice }
 
         let soldToday = items.filter { item in
             guard item.status == .sold, let soldAt = item.soldAt else { return false }
@@ -83,11 +83,11 @@ struct InventoryStatistics {
         let validOrders = orders.filter { !$0.isVoided }
         let validOrdersToday = validOrders.filter { calendar.isDate($0.createdAt, inSameDayAs: now) }
         if validOrdersToday.isEmpty {
-            todayRevenue = soldToday.reduce(Decimal(0)) { $0 + $1.soldPriceCNY }
-            todayProfit = soldToday.reduce(Decimal(0)) { $0 + $1.grossProfitCNY }
+            todayRevenue = soldToday.reduce(Decimal(0)) { $0 + $1.soldPrice }
+            todayProfit = soldToday.reduce(Decimal(0)) { $0 + $1.grossProfit }
         } else {
-            todayRevenue = validOrdersToday.reduce(Decimal(0)) { $0 + $1.totalCNY }
-            todayProfit = validOrdersToday.reduce(Decimal(0)) { $0 + $1.profitCNY }
+            todayRevenue = validOrdersToday.reduce(Decimal(0)) { $0 + $1.total }
+            todayProfit = validOrdersToday.reduce(Decimal(0)) { $0 + $1.profit }
         }
 
         let buckets: [(String, ClosedRange<Int>)] = [
@@ -102,7 +102,7 @@ struct InventoryStatistics {
                 id: label,
                 label: label,
                 count: matched.count,
-                value: matched.reduce(Decimal(0)) { $0 + $1.landedCostCNY }
+                value: matched.reduce(Decimal(0)) { $0 + $1.landedCost }
             )
         }
 
@@ -121,8 +121,8 @@ struct InventoryStatistics {
             points.append(DailyPoint(
                 id: dayStart,
                 date: dayStart,
-                revenue: dayOrders.reduce(Decimal(0)) { $0 + $1.totalCNY },
-                profit: dayOrders.reduce(Decimal(0)) { $0 + $1.profitCNY },
+                revenue: dayOrders.reduce(Decimal(0)) { $0 + $1.total },
+                profit: dayOrders.reduce(Decimal(0)) { $0 + $1.profit },
                 count: dayOrders.count
             ))
         }
@@ -134,14 +134,14 @@ struct InventoryStatistics {
             return PaymentSlice(
                 id: method.rawValue,
                 method: method,
-                amount: matched.reduce(Decimal(0)) { $0 + $1.totalCNY },
+                amount: matched.reduce(Decimal(0)) { $0 + $1.total },
                 count: matched.count
             )
         }
 
         // 低于成本：在库且标价低于落地成本
         lowMarginItems = inStock
-            .filter { $0.listPriceCNY > 0 && $0.listPriceCNY < $0.landedCostCNY }
-            .sorted { ($0.listPriceCNY - $0.landedCostCNY) < ($1.listPriceCNY - $1.landedCostCNY) }
+            .filter { $0.listPrice > 0 && $0.listPrice < $0.landedCost }
+            .sorted { ($0.listPrice - $0.landedCost) < ($1.listPrice - $1.landedCost) }
     }
 }

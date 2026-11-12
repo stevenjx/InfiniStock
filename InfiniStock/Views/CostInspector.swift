@@ -38,17 +38,18 @@ struct InspectorContent: View {
     @ViewBuilder
     private func single(_ item: Item) -> some View {
         SectionCard(title: "成本结构") {
-            KeyValueRow(label: "进价", value: "\(Money.text(item.costAmount)) \(item.currency.rawValue)")
-            KeyValueRow(label: "汇率", value: Money.text(item.exchangeRate))
-            KeyValueRow(label: "运费", value: item.shippingCNY.cny)
-            KeyValueRow(label: "落地成本", value: item.landedCostCNY.cny)
+            KeyValueRow(label: "进价", value: item.costCNY.cny)
+            KeyValueRow(label: "汇率", value: "1 元 = \(Money.text(item.exchangeRate)) 缅币")
+            KeyValueRow(label: "进价折缅币", value: item.costMMK.mmk)
+            KeyValueRow(label: "运费", value: item.shipping.mmk)
+            KeyValueRow(label: "总进价", value: item.landedCost.mmk)
         }
 
         SectionCard(title: "毛利预估") {
-            KeyValueRow(label: "标价", value: item.listPriceCNY.cny)
-            let profit = item.listPriceCNY - item.landedCostCNY
-            KeyValueRow(label: "预计毛利", value: profit.signedCNY, valueTone: profit < 0 ? .danger : .ok)
-            KeyValueRow(label: "毛利率", value: marginText(profit, base: item.listPriceCNY))
+            KeyValueRow(label: "标价", value: item.listPrice.mmk)
+            let profit = item.listPrice - item.landedCost
+            KeyValueRow(label: "预计毛利", value: profit.signedMMK, valueTone: profit < 0 ? .danger : .ok)
+            KeyValueRow(label: "毛利率", value: marginText(profit, base: item.listPrice))
         }
 
         SectionCard(title: "持有") {
@@ -59,24 +60,24 @@ struct InspectorContent: View {
             if let batch = item.batch {
                 KeyValueRow(label: "批次", value: batch.name)
                 KeyValueRow(label: "批次汇率", value: Money.text(batch.exchangeRate))
-                KeyValueRow(label: "已分摊运费", value: item.shippingCNY.cny)
+                KeyValueRow(label: "已分摊运费", value: item.shipping.mmk)
             }
         }
     }
 
     @ViewBuilder
     private var aggregate: some View {
-        let landed = items.reduce(Decimal(0)) { $0 + $1.landedCostCNY }
-        let listed = items.reduce(Decimal(0)) { $0 + $1.listPriceCNY }
+        let landed = items.reduce(Decimal(0)) { $0 + $1.landedCost }
+        let listed = items.reduce(Decimal(0)) { $0 + $1.listPrice }
         let averageAge = items.isEmpty ? 0 : items.reduce(0) { $0 + $1.ageInDays } / items.count
         let overdue = items.filter(\.isOverdue).count
 
         SectionCard(title: "已选 \(items.count) 台") {
-            KeyValueRow(label: "总成本", value: landed.cny)
-            KeyValueRow(label: "总标价", value: listed.cny)
+            KeyValueRow(label: "总成本", value: landed.mmk)
+            KeyValueRow(label: "总标价", value: listed.mmk)
             KeyValueRow(
                 label: "预计毛利",
-                value: (listed - landed).signedCNY,
+                value: (listed - landed).signedMMK,
                 valueTone: (listed - landed) < 0 ? .danger : .ok
             )
             KeyValueRow(label: "平均库龄", value: "\(averageAge) 天")

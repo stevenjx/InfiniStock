@@ -8,8 +8,7 @@ struct BatchSheet: View {
 
     @State private var name = ""
     @State private var supplier = ""
-    @State private var currency: CostCurrency = .usd
-    @State private var rateText = "7.1"
+    @State private var rateText = ""
     @State private var shippingText = "0"
     @State private var allocation: AllocationMethod = .byValue
     @State private var errorMessage: String?
@@ -23,14 +22,9 @@ struct BatchSheet: View {
                 }
 
                 Section("成本口径") {
-                    Picker("币种", selection: $currency) {
-                        ForEach(CostCurrency.allCases) { item in
-                            Text(item.rawValue).tag(item)
-                        }
-                    }
-                    TextField("锁定汇率（原币 → 人民币）", text: $rateText)
+                    TextField("锁定汇率（1 元 = ? 缅币）", text: $rateText)
                         .decimalKeyboard()
-                    TextField("本批总运费（人民币）", text: $shippingText)
+                    TextField("本批总运费（缅币 K）", text: $shippingText)
                         .decimalKeyboard()
                     Picker("运费分摊", selection: $allocation) {
                         ForEach(AllocationMethod.allCases) { method in
@@ -40,7 +34,7 @@ struct BatchSheet: View {
                 }
 
                 Section {
-                    Text("汇率锁定后，本批所有机器的成本都按该汇率折算，不受后续汇率波动影响。运费分摊的尾差由最后一台吸收，保证合计精确。")
+                    Text("汇率锁定后，本批每台机器的总进价都按该汇率折算（人民币进价 × 汇率 + 分摊运费），不受后续汇率波动影响。运费分摊的尾差由最后一台吸收，保证合计精确。")
                         .font(.caption)
                         .foregroundStyle(Token.Ink.secondary)
                 }
@@ -66,14 +60,11 @@ struct BatchSheet: View {
             }
         }
         .frame(minWidth: 480, minHeight: 460)
-        .onChange(of: currency) { _, newValue in
-            rateText = Money.text(newValue.defaultRate)
-        }
     }
 
     private func save() {
         guard let rate = Money.parse(rateText), rate > 0 else {
-            errorMessage = "汇率不正确"
+            errorMessage = "汇率必须大于 0（1 元人民币 = N 缅币）"
             return
         }
         guard let shipping = Money.parse(shippingText), shipping >= 0 else {
@@ -84,9 +75,8 @@ struct BatchSheet: View {
         let batch = Batch()
         batch.name = name.trimmingCharacters(in: .whitespaces)
         batch.supplier = supplier.trimmingCharacters(in: .whitespaces)
-        batch.currency = currency
         batch.exchangeRate = rate
-        batch.totalShippingCNY = shipping
+        batch.totalShipping = shipping
         batch.allocation = allocation
         batch.createdAt = .now
         context.insert(batch)

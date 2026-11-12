@@ -12,22 +12,11 @@ struct SidebarView: View {
             header
 
             ScrollView {
-                VStack(alignment: .leading, spacing: Token.Space.l) {
-                    group("库存") {
-                        row(.stock(.inStock))
-                        row(.stock(.sold))
-                        row(.stock(.locked))
-                        row(.stock(nil))
-                    }
-                    group("交易") {
-                        row(.orders)
-                    }
-                    group("进货") {
-                        row(.batches)
-                    }
-                    group("客户") {
-                        row(.customers)
-                    }
+                VStack(alignment: .leading, spacing: 2) {
+                    row(.stock(nil))
+                    row(.orders)
+                    row(.customers)
+                    row(.batches)
                 }
                 .padding(.horizontal, Token.Space.s)
                 .padding(.top, Token.Space.s)
@@ -105,20 +94,15 @@ struct SidebarView: View {
         BackupService.backupFolder() != nil
     }
 
-    private func group<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(Token.Ink.tertiary)
-                .textCase(.uppercase)
-                .padding(.horizontal, Token.Space.s)
-                .padding(.bottom, 3)
-            content()
-        }
+    /// 库存的四个状态共用一个入口：选中态按"是不是库存分区"判断，
+    /// 否则从胶囊切到「已售」时侧栏会整列失去高亮。
+    private func isCurrent(_ section: SidebarSection) -> Bool {
+        if section.isStock { return selection.isStock }
+        return selection == section
     }
 
     private func row(_ section: SidebarSection) -> some View {
-        let isSelected = selection == section
+        let isSelected = isCurrent(section)
         return Button {
             selection = section
         } label: {
@@ -126,18 +110,18 @@ struct SidebarView: View {
                 Image(systemName: section.icon)
                     .font(.system(size: 12.5, weight: .medium))
                     .frame(width: 17)
-                    .foregroundStyle(isSelected ? Token.Accent.brand : Token.Ink.secondary)
+                    .foregroundStyle(isSelected ? Token.Ink.onAccent : Token.Ink.secondary)
                 Text(section.label)
-                    .font(.system(size: 13, weight: isSelected ? .medium : .regular))
-                    .foregroundStyle(isSelected ? Token.Accent.brand : Token.Ink.primary)
+                    .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
+                    .foregroundStyle(isSelected ? Token.Ink.onAccent : Token.Ink.primary)
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, Token.Space.s)
-            .frame(height: 28)
+            .frame(height: 32)
             .contentShape(.rect)
             .background(
-                isSelected ? Token.Accent.fill : Color.clear,
-                in: .rect(cornerRadius: 7)
+                isSelected ? Token.Accent.brand : Color.clear,
+                in: .rect(cornerRadius: 8)
             )
         }
         .buttonStyle(.plain)

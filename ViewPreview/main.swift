@@ -87,7 +87,7 @@ struct ViewPreview {
         batch.name = "2026-11 深圳批"
         batch.currency = .usd
         batch.exchangeRate = 7.1234
-        batch.totalShippingCNY = 240
+        batch.totalShipping = 240
         batch.allocation = .byValue
         context.insert(batch)
 
@@ -99,18 +99,18 @@ struct ViewPreview {
         draft.storage = "256GB"
         draft.color = "深空黑"
         draft.condition = .p95
-        draft.costAmount = "980"
+        draft.costCNY = "980"
         draft.currency = .usd
         draft.exchangeRate = "7.1234"
-        draft.shippingCNY = "120"
-        draft.listPriceCNY = "8999"
+        draft.shipping = "120"
+        draft.listPrice = "8999"
         _ = try? InventoryService.intake(draft, batch: batch, in: context)
 
         var second = draft
         second.serialNumber = "F2LX9K3QABCE"
         second.modelName = "iPhone 16"
         second.storage = "128GB"
-        second.listPriceCNY = "4699"
+        second.listPrice = "4699"
         let old = try? InventoryService.intake(second, in: context)
         old?.inboundAt = Calendar.current.date(byAdding: .day, value: -92, to: .now) ?? .now
 

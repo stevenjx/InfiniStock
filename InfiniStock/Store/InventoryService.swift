@@ -8,6 +8,7 @@ enum InventoryError: LocalizedError {
     case notInStock(String)
     case emptySelection
     case invalidAmount(String)
+    case invalidRate
     case invalidDiscount
     case discountTooLarge(Decimal)
     case cannotDelete(String, String)
@@ -20,8 +21,9 @@ enum InventoryError: LocalizedError {
         case .notInStock(let serial): "序列号 \(serial) 不在库，无法出库"
         case .emptySelection: "请先选择要出库的机器"
         case .invalidAmount(let field): "\(field) 不是有效数字"
+        case .invalidRate: "汇率必须大于 0（1 元人民币 = N 缅币）"
         case .invalidDiscount: "折扣与抹零不能为负数"
-        case .discountTooLarge(let subtotal): "折扣加抹零超过商品小计 \(subtotal.cny)"
+        case .discountTooLarge(let subtotal): "折扣加抹零超过商品小计 \(subtotal.mmk)"
         case .cannotDelete(let serial, let reason): "序列号 \(serial) 无法删除：\(reason)"
         }
     }
@@ -36,17 +38,20 @@ struct IntakeDraft {
     var storage = ""
     var color = ""
     var condition: ItemCondition = .p95
-    var costAmount = ""
-    var currency: CostCurrency = .cny
-    var exchangeRate = "1"
-    var shippingCNY = "0"
-    var listPriceCNY = ""
+    /// 人民币进价
+    var costCNY = ""
+    /// 1 元人民币 = N 缅币
+    var exchangeRate = ""
+    /// 缅币运费
+    var shipping = "0"
+    /// 缅币标价
+    var listPrice = ""
 
     var previewLandedCost: Decimal {
         Money.landedCost(
-            amount: Money.parse(costAmount) ?? 0,
-            rate: Money.parse(exchangeRate) ?? 1,
-            shippingCNY: Money.parse(shippingCNY) ?? 0
+            costCNY: Money.parse(costCNY) ?? 0,
+            rate: Money.parse(exchangeRate) ?? 0,
+            shipping: Money.parse(shipping) ?? 0
         )
     }
 }
@@ -72,10 +77,11 @@ enum InventoryService {
         guard !normalize(draft.modelName).isEmpty else { throw InventoryError.emptyModel }
         guard !serialExists(serial, in: context) else { throw InventoryError.duplicateSerial(serial) }
 
-        let cost = try amount(draft.costAmount, field: "进价", fallback: 0)
-        let rate = try amount(draft.exchangeRate, field: "汇率", fallback: 1)
-        let shipping = try amount(draft.shippingCNY, field: "运费", fallback: 0)
-        let listPrice = try amount(draft.listPriceCNY, field: "标价", fallback: 0)
+        let cost = try amount(draft.costCNY, field: "进价", fallback: 0)
+        let rate = try amount(draft.exchangeRate, field: "汇率", fallback: 0)
+        guard rate > 0 else { throw InventoryError.invalidRate }
+        let shipping = try amount(draft.shipping, field: "运费", fallback: 0)
+        let listPrice = try amount(draft.listPrice, field: "标价", fallback: 0)
 
         let item = Item(
             serialNumber: serial,
@@ -85,11 +91,10 @@ enum InventoryService {
             storage: draft.storage,
             color: draft.color,
             condition: draft.condition,
-            costAmount: cost,
-            currency: draft.currency,
+            costCNY: cost,
             exchangeRate: rate,
-            shippingCNY: shipping,
-            listPriceCNY: listPrice
+            shipping: shipping,
+            listPrice: listPrice
         )
         context.insert(item)
 
@@ -119,11 +124,11 @@ enum InventoryService {
         in context: ModelContext
     ) throws -> Order {
         try sell(
-            lines: items.map { SaleLine(item: $0, price: unitPrice ?? $0.listPriceCNY) },
+            lines: items.map { SaleLine(item: $0, price: unitPrice ?? $0.listPrice) },
             customerName: customerName,
             customerContact: customerContact,
-            discountCNY: 0,
-            roundingCNY: 0,
+            discount: 0,
+            rounding: 0,
             paymentMethod: .cash,
             in: context
         )
@@ -135,8 +140,8 @@ enum InventoryService {
         lines: [SaleLine],
         customerName: String,
         customerContact: String,
-        discountCNY: Decimal,
-        roundingCNY: Decimal,
+        discount: Decimal,
+        rounding: Decimal,
         paymentMethod: PaymentMethod,
         in context: ModelContext,
         now: Date = .now
@@ -145,10 +150,10 @@ enum InventoryService {
         for line in lines where line.item.status != .inStock {
             throw InventoryError.notInStock(line.item.serialNumber)
         }
-        guard discountCNY >= 0, roundingCNY >= 0 else { throw InventoryError.invalidDiscount }
+        guard discount >= 0, rounding >= 0 else { throw InventoryError.invalidDiscount }
 
         let subtotal = lines.reduce(Decimal(0)) { $0 + $1.price }.rounded(2)
-        guard discountCNY + roundingCNY <= subtotal else { throw InventoryError.discountTooLarge(subtotal) }
+        guard discount + rounding <= subtotal else { throw InventoryError.discountTooLarge(subtotal) }
 
         let year = Calendar.current.component(.year, from: now)
         let sequence = try OrderNumberFactory.nextSequence(for: year, in: context)
@@ -162,24 +167,24 @@ enum InventoryService {
         order.createdAt = now
         order.originDeviceID = DeviceIdentity.current
         order.paymentMethod = paymentMethod
-        order.subtotalCNY = subtotal
-        order.discountCNY = discountCNY.rounded(2)
-        order.roundingCNY = roundingCNY.rounded(2)
+        order.subtotal = subtotal
+        order.discount = discount.rounded(2)
+        order.rounding = rounding.rounded(2)
         context.insert(order)
 
-        let payable = (subtotal - discountCNY - roundingCNY).rounded(2)
+        let payable = (subtotal - discount - rounding).rounded(2)
         var cost: Decimal = 0
         for line in lines {
             line.item.status = .sold
             line.item.soldAt = now
-            line.item.soldPriceCNY = line.price
+            line.item.soldPrice = line.price
             line.item.order = order
-            cost += line.item.landedCostCNY
+            cost += line.item.landedCost
         }
 
         // 毛利按「实收 − 总成本」算，折扣必须计入，否则毛利虚高
-        order.totalCNY = payable
-        order.profitCNY = (payable - cost).rounded(2)
+        order.total = payable
+        order.profit = (payable - cost).rounded(2)
 
         try context.save()
         lines.forEach { SpotlightIndexer.index($0.item) }

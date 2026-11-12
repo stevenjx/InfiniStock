@@ -69,7 +69,7 @@ private struct RecentRow: View {
             CellTitle(title: item.modelName, subtitle: item.serialNumber)
             Spacer(minLength: Token.Space.s)
             VStack(alignment: .trailing, spacing: 2) {
-                Text(item.landedCostCNY.cny)
+                Text(item.landedCost.mmk)
                     .font(Token.Typography.money)
                     .foregroundStyle(Token.Ink.primary)
                 Badge(

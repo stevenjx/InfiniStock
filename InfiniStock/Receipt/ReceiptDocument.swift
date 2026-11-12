@@ -43,21 +43,21 @@ struct ReceiptDocument {
                     serialNumber: item.serialNumber,
                     spec: [item.memory, item.storage].filter { !$0.isEmpty }.joined(separator: " "),
                     condition: item.condition.rawValue,
-                    price: item.soldPriceCNY
+                    price: item.soldPrice
                 )
             }
         shopName = settings.shopName
         shopPhone = settings.phone
         shopAddress = settings.address
-        subtotal = order.subtotalCNY
-        discount = order.discountCNY
-        rounding = order.roundingCNY
-        total = order.totalCNY
+        subtotal = order.subtotal
+        discount = order.discount
+        rounding = order.rounding
+        total = order.total
         paymentMethod = order.paymentMethod.rawValue
         warrantyDays = settings.warrantyDays
         footnote = settings.footnote
         returnedCount = order.returnedCount
-        returnedAmount = order.returnedAmountCNY
+        returnedAmount = order.returnedAmount
     }
 
     /// 供验证与预览构造

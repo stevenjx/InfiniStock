@@ -59,14 +59,14 @@ struct BatchesView: View {
             .width(min: 66, ideal: 76)
 
             TableColumn("总运费") { batch in
-                Text(batch.totalShippingCNY.cny)
+                Text(batch.totalShipping.mmk)
                     .font(Token.Typography.money)
                     .foregroundStyle(Token.Ink.secondary)
             }
             .width(min: 74, ideal: 84)
 
-            TableColumn("落地成本合计") { batch in
-                Text(batch.itemList.reduce(Decimal(0)) { $0 + $1.landedCostCNY }.cny)
+            TableColumn("总进价合计") { batch in
+                Text(batch.itemList.reduce(Decimal(0)) { $0 + $1.landedCost }.mmk)
                     .font(Token.Typography.money)
                     .foregroundStyle(Token.Ink.primary)
             }
@@ -88,8 +88,8 @@ struct BatchesView: View {
 
     private var footerTrailing: String? {
         guard let selection, let batch = batches.first(where: { $0.id == selection }) else { return nil }
-        let cost = batch.itemList.reduce(Decimal(0)) { $0 + $1.landedCostCNY }
-        return "\(batch.name) · 成本 \(cost.cny)"
+        let cost = batch.itemList.reduce(Decimal(0)) { $0 + $1.landedCost }
+        return "\(batch.name) · 成本 \(cost.mmk)"
     }
 
     private var filtered: [Batch] {
@@ -123,13 +123,12 @@ struct BatchDetailView: View {
                     }
 
                     PanelSection(title: "成本口径") {
-                        KeyValueRow(label: "币种", value: batch.currency.rawValue)
-                        KeyValueRow(label: "锁定汇率", value: Money.text(batch.exchangeRate))
-                        KeyValueRow(label: "总运费", value: batch.totalShippingCNY.cny)
-                        KeyValueRow(label: "已分摊", value: items.reduce(Decimal(0)) { $0 + $1.shippingCNY }.cny)
+                        KeyValueRow(label: "锁定汇率", value: "1 元 = \(Money.text(batch.exchangeRate)) 缅币")
+                        KeyValueRow(label: "总运费", value: batch.totalShipping.mmk)
+                        KeyValueRow(label: "已分摊", value: items.reduce(Decimal(0)) { $0 + $1.shipping }.mmk)
                         KeyValueRow(
                             label: "成本合计",
-                            value: items.reduce(Decimal(0)) { $0 + $1.landedCostCNY }.cny
+                            value: items.reduce(Decimal(0)) { $0 + $1.landedCost }.mmk
                         )
                     }
 
@@ -143,7 +142,7 @@ struct BatchDetailView: View {
                             HStack(spacing: Token.Space.s) {
                                 CellTitle(title: item.modelName, subtitle: item.serialNumber)
                                 Spacer()
-                                Text(item.landedCostCNY.cny)
+                                Text(item.landedCost.mmk)
                                     .font(Token.Typography.money)
                                     .foregroundStyle(Token.Ink.primary)
                                 Badge(

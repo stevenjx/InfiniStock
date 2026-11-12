@@ -142,10 +142,3 @@ extension Order {
         return .ok
     }
 }
-
-extension Decimal {
-    /// 带正负号，用于毛利展示
-    var signedCNY: String {
-        self > 0 ? "+" + cny : cny
-    }
-}

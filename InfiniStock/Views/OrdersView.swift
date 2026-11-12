@@ -1,6 +1,61 @@
 import SwiftUI
 import SwiftData
 
+/// 销售页顶部的结论层：先回答"今天卖了多少"，再给明细。
+/// 口径与仪表盘同源（都以有效单据为准），避免两个页面报不同数字。
+struct OrdersKpiStrip: View {
+    @Query private var orders: [Order]
+    @Query private var items: [Item]
+
+    private var todayOrders: [Order] {
+        orders.filter { !$0.isVoided && Calendar.current.isDateInToday($0.createdAt) }
+    }
+
+    private var revenue: Decimal {
+        todayOrders.reduce(Decimal(0)) { $0 + $1.total }
+    }
+
+    private var profit: Decimal {
+        todayOrders.reduce(Decimal(0)) { $0 + $1.profit }
+    }
+
+    private var soldCount: Int {
+        todayOrders.reduce(0) { $0 + $1.itemList.count }
+    }
+
+    private var marginText: String {
+        guard revenue > 0 else { return "暂无成交" }
+        return "毛利率 \((profit / revenue * 100).rounded(1))%"
+    }
+
+    var body: some View {
+        HStack(spacing: Token.Space.m) {
+            StatCard(
+                title: "今日销售额",
+                value: revenue.mmk,
+                systemImage: "cart.fill",
+                tone: .brand,
+                delta: "\(todayOrders.count) 张单"
+            )
+            StatCard(
+                title: "今日毛利",
+                value: profit.signedMMK,
+                systemImage: "chart.line.uptrend.xyaxis",
+                tone: profit < 0 ? .danger : .ok,
+                delta: marginText,
+                deltaTone: profit < 0 ? .danger : .ok
+            )
+            StatCard(
+                title: "今日已售",
+                value: "\(soldCount) 台",
+                systemImage: "shippingbox.fill",
+                tone: .neutral,
+                delta: "在库 \(items.filter { $0.status == .inStock }.count) 台"
+            )
+        }
+    }
+}
+
 /// 单据列表。工具条与库存页同构，行内用双行单元格展示单号与客户。
 struct OrdersView: View {
     @Binding var selection: PersistentIdentifier?
@@ -63,16 +118,16 @@ struct OrdersView: View {
                 .width(min: 92, ideal: 104)
 
                 TableColumn("应收") { order in
-                    Text(order.totalCNY.cny)
+                    Text(order.total.mmk)
                         .font(Token.Typography.money)
                         .foregroundStyle(Token.Ink.primary)
                 }
                 .width(min: 82, ideal: 92)
 
                 TableColumn("毛利") { order in
-                    Text(order.profitCNY.signedCNY)
+                    Text(order.profit.signedMMK)
                         .font(Token.Typography.money)
-                        .foregroundStyle(order.profitCNY < 0 ? Token.Status.danger : Token.Status.ok)
+                        .foregroundStyle(order.profit < 0 ? Token.Status.danger : Token.Status.ok)
                 }
                 .width(min: 76, ideal: 86)
 
@@ -111,7 +166,7 @@ struct OrdersView: View {
 
     private var footerTrailing: String? {
         guard let selection, let order = orders.first(where: { $0.id == selection }) else { return nil }
-        return "\(order.number) · 应收 \(order.totalCNY.cny)"
+        return "\(order.number) · 应收 \(order.total.mmk)"
     }
 
     private var filtered: [Order] {
