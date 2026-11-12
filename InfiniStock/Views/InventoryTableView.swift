@@ -2,7 +2,8 @@ import AppKit
 import SwiftUI
 import SwiftData
 
-/// 库存主表。用 Table 而不是 List：macOS 用户预期列可排序、可拖宽。
+/// 库存主表。型号列合并序列号成双行单元格，状态走语义徽章，
+/// 目标是 1080p 宽度下不出现横向滚动。
 struct InventoryTableView: View {
     let statusFilter: ItemStatus?
     @Binding var selection: Set<PersistentIdentifier>
@@ -17,49 +18,57 @@ struct InventoryTableView: View {
     var body: some View {
         Table(of: Item.self, selection: $selection, sortOrder: $sortOrder) {
             TableColumn("型号", value: \.modelName) { item in
-                Text(item.modelName).lineLimit(1)
+                CellTitle(title: item.modelName, subtitle: item.serialNumber)
             }
-            .width(min: 130, ideal: 160)
-
-            TableColumn("序列号", value: \.serialNumber) { item in
-                Text(item.serialNumber).monospaced().lineLimit(1)
-            }
-            .width(min: 115, ideal: 140)
+            .width(min: 170, ideal: 210)
 
             TableColumn("规格") { item in
-                Text(item.memory.isEmpty || item.storage.isEmpty ? "—" : "\(item.memory) \(item.storage)")
+                Text(specText(item))
+                    .font(Token.Typography.caption)
+                    .foregroundStyle(Token.Ink.secondary)
                     .lineLimit(1)
             }
-            .width(min: 80, ideal: 110)
+            .width(min: 76, ideal: 96)
 
             TableColumn("落地成本", value: \.landedCostCNY) { item in
-                Text(item.landedCostCNY.cny).monospacedDigit()
+                Text(item.landedCostCNY.cny)
+                    .font(Token.Typography.money)
+                    .foregroundStyle(Token.Ink.primary)
             }
-            .width(min: 90, ideal: 100)
+            .width(min: 92, ideal: 100)
 
             TableColumn("标价", value: \.listPriceCNY) { item in
-                Text(item.listPriceCNY.cny).monospacedDigit()
+                Text(item.listPriceCNY.cny)
+                    .font(Token.Typography.money)
+                    .foregroundStyle(Token.Ink.secondary)
             }
-            .width(min: 90, ideal: 100)
+            .width(min: 88, ideal: 96)
 
             TableColumn("库龄") { item in
-                Text("\(item.ageInDays) 天")
-                    .monospacedDigit()
-                    .foregroundStyle(item.isOverdue ? Color.red : Color.secondary)
+                if item.isOverdue {
+                    Badge(text: "\(item.ageInDays) 天", tone: .danger, style: .filled)
+                } else {
+                    Text("\(item.ageInDays) 天")
+                        .font(Token.Typography.money)
+                        .foregroundStyle(Token.Ink.secondary)
+                }
             }
-            .width(min: 60, ideal: 70)
+            .width(min: 64, ideal: 72)
 
             TableColumn("状态", value: \.statusRaw) { item in
-                Text(item.status.label)
-                    .foregroundStyle(item.status == .inStock ? Color.primary : Color.secondary)
+                Badge(
+                    text: item.status.label,
+                    tone: item.status.tone,
+                    style: item.status == .inStock ? .outline : .filled
+                )
             }
-            .width(min: 50, ideal: 60)
+            .width(min: 66, ideal: 74)
         } rows: {
             ForEach(rows) { item in
                 TableRow(item)
             }
         }
-        .searchable(text: $searchText, isPresented: $searchPresented, prompt: "序列号 / 型号")
+        .searchable(text: $searchText, isPresented: $searchPresented, prompt: "序列号 / 型号 / 客户")
         .onDeleteCommand {
             let chosen = rows.filter { selection.contains($0.id) }
             guard !chosen.isEmpty else { return }
@@ -76,6 +85,21 @@ struct InventoryTableView: View {
                 }
             }
         }
+        .overlay {
+            if rows.isEmpty {
+                EmptyState(
+                    title: searchText.isEmpty ? "没有机器" : "没有匹配结果",
+                    message: searchText.isEmpty ? "点工具栏「入库」或按 ⌘N 录入第一台" : "换个序列号或型号关键词试试",
+                    systemImage: searchText.isEmpty ? "shippingbox" : "magnifyingglass"
+                )
+                .allowsHitTesting(false)
+            }
+        }
+    }
+
+    private func specText(_ item: Item) -> String {
+        let parts = [item.memory, item.storage].filter { !$0.isEmpty }
+        return parts.isEmpty ? "—" : parts.joined(separator: " ")
     }
 
     private var rows: [Item] {
@@ -86,6 +110,7 @@ struct InventoryTableView: View {
             guard !keyword.isEmpty else { return true }
             return item.serialNumber.localizedCaseInsensitiveContains(keyword)
                 || item.modelName.localizedCaseInsensitiveContains(keyword)
+                || item.order?.customerName.localizedCaseInsensitiveContains(keyword) == true
         }
         return filtered.sorted(using: sortOrder)
     }
