@@ -120,6 +120,12 @@ enum ReceiptPDFRenderer {
         y += 26
         text("大写：\(ChineseAmount.uppercase(document.total))", x: margin + 6, topY: y, font: .systemFont(ofSize: 10), color: .darkGray, in: context)
 
+        if document.returnedCount > 0 {
+            y += 16
+            text("售后：本单已退货 \(document.returnedCount) 台，退回 \(document.returnedAmount.cny)，上述金额为退货后净额。",
+                 x: margin + 6, topY: y, font: .systemFont(ofSize: 9), color: .red, in: context)
+        }
+
         y += 32
         line(from: CGPoint(x: margin, y: y), to: CGPoint(x: right, y: y), width: 0.4, color: .lightGray, in: context)
         y += 14

@@ -3,7 +3,7 @@ import Foundation
 /// 备份快照。金额一律以字符串编码——JSONEncoder 走 Double 会丢精度，
 /// 1234.56 存成 1234.5599999999999 这种事在成本账上不能接受。
 struct BackupSnapshot: Codable {
-    static let currentFormatVersion = 2
+    static let currentFormatVersion = 3
 
     var formatVersion: Int
     var exportedAt: Date
@@ -54,6 +54,8 @@ struct BackupSnapshot: Codable {
         var paymentMethod: String?
         var sequenceYear: Int?
         var sequenceNumber: Int?
+        var returnedAmountCNY: String?
+        var returnedCount: Int?
     }
 
     struct BatchDTO: Codable {

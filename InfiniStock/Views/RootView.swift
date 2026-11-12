@@ -42,28 +42,41 @@ struct RootView: View {
     @State private var selection: Set<PersistentIdentifier> = []
     @State private var showingSale = false
     @State private var showingInspector = false
+    @State private var selectedOrderID: PersistentIdentifier?
 
     @Query private var allItems: [Item]
+    @Query private var allOrders: [Order]
 
     var body: some View {
         @Bindable var appState = appState
 
         NavigationSplitView {
             List(selection: $filter) {
-                ForEach(InventoryFilter.allCases, id: \.self) { item in
-                    Label(item.label, systemImage: item.icon)
-                        .tag(Optional(item))
+                Section("库存") {
+                    ForEach(InventoryFilter.allCases, id: \.self) { item in
+                        Label(item.label, systemImage: item.icon)
+                            .tag(Optional(item))
+                    }
+                }
+                Section("交易") {
+                    Label("单据", systemImage: "doc.text")
+                        .tag(Optional<InventoryFilter>(nil))
                 }
             }
             .navigationSplitViewColumnWidth(min: 150, ideal: 170, max: 220)
         } content: {
-            InventoryTableView(
-                statusFilter: activeFilter.status,
-                selection: $selection,
-                searchPresented: $appState.showingSearch
-            )
-            .navigationSplitViewColumnWidth(min: 460, ideal: 700)
-            .navigationTitle(activeFilter.label)
+            if showingOrders {
+                OrdersView(selection: $selectedOrderID)
+                    .navigationSplitViewColumnWidth(min: 520, ideal: 760)
+            } else {
+                InventoryTableView(
+                    statusFilter: activeFilter.status,
+                    selection: $selection,
+                    searchPresented: $appState.showingSearch
+                )
+                .navigationSplitViewColumnWidth(min: 460, ideal: 700)
+                .navigationTitle(activeFilter.label)
+            }
         } detail: {
             detailPane
                 .inspector(isPresented: $showingInspector) {
@@ -78,6 +91,7 @@ struct RootView: View {
                 } label: {
                     Label("入库", systemImage: "plus")
                 }
+                .disabled(showingOrders)
                 .help("入库（⌘N）")
             }
 
@@ -87,7 +101,7 @@ struct RootView: View {
                 } label: {
                     Label("出库销售", systemImage: "arrow.up.forward.square")
                 }
-                .disabled(!canSell)
+                .disabled(!canSell || showingOrders)
                 .help("出库销售")
             }
 
@@ -147,9 +161,26 @@ struct RootView: View {
         !selection.isEmpty && selectedItems.allSatisfy { $0.status == .inStock }
     }
 
+    private var showingOrders: Bool { filter == nil }
+
+    private var selectedOrder: Order? {
+        guard let selectedOrderID else { return nil }
+        return allOrders.first { $0.id == selectedOrderID }
+    }
+
     @ViewBuilder
     private var detailPane: some View {
-        if selection.count == 1, let item = selectedItems.first {
+        if showingOrders {
+            if let order = selectedOrder {
+                OrderDetailView(order: order)
+            } else {
+                ContentUnavailableView(
+                    "选择一张单据",
+                    systemImage: "doc.text",
+                    description: Text("中间列表可搜索单号、客户或序列号")
+                )
+            }
+        } else if selection.count == 1, let item = selectedItems.first {
             ItemDetailView(item: item)
         } else if selection.count > 1 {
             ContentUnavailableView(

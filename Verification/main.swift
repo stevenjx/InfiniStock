@@ -734,6 +734,128 @@ struct Verify {
               importBatch.itemList.reduce(Decimal(0)) { $0 + $1.shippingCNY } == 100,
               "\(importBatch.itemList.reduce(Decimal(0)) { $0 + $1.shippingCNY })")
 
+
+        // MARK: P2 部分退货
+
+        let p2Schema = Schema([Item.self, Order.self, Batch.self])
+        let p2Config = ModelConfiguration(schema: p2Schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let p2Container = try ModelContainer(for: p2Schema, configurations: [p2Config])
+        let p2 = p2Container.mainContext
+
+        func p2Item(_ serial: String, cost: Decimal, list: Decimal) -> Item {
+            let item = Item(serialNumber: serial, modelName: "iPhone 17", costAmount: cost,
+                            currency: .cny, exchangeRate: 1, shippingCNY: 0, listPriceCNY: list)
+            p2.insert(item)
+            return item
+        }
+
+        let r1 = p2Item("RT1", cost: 5000, list: 6800)
+        let r2 = p2Item("RT2", cost: 4000, list: 5500)
+        let r3 = p2Item("RT3", cost: 3000, list: 4200)
+
+        let rOrder = try InventoryService.sell(
+            lines: [.init(item: r1, price: 6800), .init(item: r2, price: 5500), .init(item: r3, price: 4200)],
+            customerName: "钱七", customerContact: "13700001111",
+            discountCNY: 200, roundingCNY: 88, paymentMethod: .cash, in: p2
+        )
+        check("退货前应收 16212", rOrder.totalCNY == 16212, "\(rOrder.totalCNY)")
+        check("退货前毛利 4212", rOrder.profitCNY == 4212, "\(rOrder.profitCNY)")
+
+        // 退一台 4200 的
+        let refund = try OrderService.returnItems([r3], from: rOrder, in: p2)
+        check("退回金额 = 该台成交价", refund == 4200, "\(refund)")
+        check("退后剩余两台", rOrder.itemList.count == 2, "\(rOrder.itemList.count)")
+        check("退后小计 12300", rOrder.subtotalCNY == 12300, "\(rOrder.subtotalCNY)")
+
+        let expectedDiscountRatio = (Decimal(12300) / Decimal(16500)).rounded(6)
+        let expectedDiscount = (Decimal(200) * expectedDiscountRatio).rounded(2)
+        let expectedRounding = (Decimal(88) * expectedDiscountRatio).rounded(2)
+        check("折扣按比例保留", rOrder.discountCNY == expectedDiscount,
+              "\(rOrder.discountCNY) vs \(expectedDiscount)")
+        check("抹零按比例保留", rOrder.roundingCNY == expectedRounding,
+              "\(rOrder.roundingCNY) vs \(expectedRounding)")
+        check("退后应收 = 小计-折扣-抹零",
+              rOrder.totalCNY == (Decimal(12300) - rOrder.discountCNY - rOrder.roundingCNY).rounded(2),
+              "\(rOrder.totalCNY)")
+        check("退后毛利按剩余成本重算",
+              rOrder.profitCNY == (rOrder.totalCNY - 9000).rounded(2),
+              "\(rOrder.profitCNY)")
+        check("退货台数累计", rOrder.returnedCount == 1)
+        check("退货金额累计", rOrder.returnedAmountCNY == 4200)
+        check("单据仍有效", !rOrder.isVoided)
+        check("状态显示部分退货", rOrder.statusLabel == "部分退货", rOrder.statusLabel)
+
+        // 退回的机器应回到在库且清空成交信息
+        check("退回机器回到在库", r3.status == .inStock)
+        check("退回机器清空成交价", r3.soldPriceCNY == 0)
+        check("退回机器解除单据关联", r3.order == nil)
+        check("退回机器清空售出时间", r3.soldAt == nil)
+
+        // 不属于该单的机器必须拒绝
+        let stranger = p2Item("STRANGER", cost: 100, list: 200)
+        do {
+            _ = try OrderService.returnItems([stranger], from: rOrder, in: p2)
+            check("非本单机器被拒绝", false, "未抛错")
+        } catch {
+            check("非本单机器被拒绝", true)
+        }
+
+        // 全部退完：应收精确归零
+        _ = try OrderService.returnItems([r1, r2], from: rOrder, in: p2)
+        check("全退后应收归零", rOrder.totalCNY == 0, "\(rOrder.totalCNY)")
+        check("全退后毛利归零", rOrder.profitCNY == 0, "\(rOrder.profitCNY)")
+        check("全退后折扣归零", rOrder.discountCNY == 0 && rOrder.roundingCNY == 0)
+        check("全退后标记作废", rOrder.isVoided)
+        check("全退状态可区分", rOrder.statusLabel == "已全退", rOrder.statusLabel)
+        check("全退后库存全部恢复",
+              [r1, r2, r3].allSatisfy { $0.status == .inStock })
+
+        // 已作废的单不能再退
+        do {
+            _ = try OrderService.returnItems([r1], from: rOrder, in: p2)
+            check("作废单拒绝再退", false, "未抛错")
+        } catch {
+            check("作废单拒绝再退", true)
+        }
+
+        // 退货不影响其他单据
+        let soloItem = p2Item("SOLO", cost: 1000, list: 2000)
+        let soloOrder = try InventoryService.sell(
+            lines: [.init(item: soloItem, price: 2000)], customerName: "无关客户",
+            customerContact: "", discountCNY: 0, roundingCNY: 0, paymentMethod: .cash, in: p2
+        )
+        check("其他单据不受影响", soloOrder.totalCNY == 2000 && !soloOrder.isVoided)
+
+        // 统计口径：退货后收入按净额
+        let p2Stats = InventoryStatistics(
+            items: try p2.fetch(FetchDescriptor<Item>()),
+            orders: try p2.fetch(FetchDescriptor<Order>())
+        )
+        check("统计只计未作废单据收入", p2Stats.todayRevenue == 2000, "\(p2Stats.todayRevenue)")
+
+        // 退货信息进凭证
+        let refundDoc = ReceiptDocument(order: soloOrder, settings: ShopSettings())
+        check("无退货时凭证不显示售后行", refundDoc.returnedCount == 0)
+        let returnedDoc = ReceiptDocument(order: rOrder, settings: ShopSettings())
+        check("全退单凭证带退货台数", returnedDoc.returnedCount == 3, "\(returnedDoc.returnedCount)")
+        check("全退单凭证带退回金额", returnedDoc.returnedAmount == Decimal(string: "16500")!,
+              "\(returnedDoc.returnedAmount)")
+
+        // 退货信息必须进备份
+        let p2Snapshot = try BackupService.makeSnapshot(from: p2)
+        let p2Decoded = try BackupService.decode(try BackupService.jsonData(p2Snapshot))
+        let p2TargetConfig = ModelConfiguration(schema: p2Schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let p2TargetContainer = try ModelContainer(for: p2Schema, configurations: [p2TargetConfig])
+        let p2Target = p2TargetContainer.mainContext
+        try BackupService.restore(p2Decoded, into: p2Target)
+        let restoredReturned = try p2Target.fetch(FetchDescriptor<Order>())
+            .first { $0.number == rOrder.number }
+        check("备份保住退货台数", restoredReturned?.returnedCount == 3,
+              "\(String(describing: restoredReturned?.returnedCount))")
+        check("备份保住退货金额", restoredReturned?.returnedAmountCNY == Decimal(string: "16500")!,
+              "\(String(describing: restoredReturned?.returnedAmountCNY))")
+        check("备份保住作废状态", restoredReturned?.isVoided == true)
+
         print(failures == 0 ? "\nALL CHECKS PASSED" : "\n\(failures) CHECK(S) FAILED")
         exit(failures == 0 ? 0 : 1)
     }

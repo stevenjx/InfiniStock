@@ -7,6 +7,7 @@ import SwiftData
 ///
 /// 沙盒路径：
 ///   ~/Library/Containers/com.infinistock.app/Data/Library/Application Support/seed.flag
+@MainActor
 enum DebugSeed {
     static func seedIfRequested(_ context: ModelContext) {
         guard let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
@@ -53,6 +54,32 @@ enum DebugSeed {
             }
         }
         try? context.save()
+
+        // 再造两张单据，便于验收单据列表与退货状态
+        let inStock = ((try? context.fetch(FetchDescriptor<Item>())) ?? []).filter { $0.status == .inStock }
+        if inStock.count >= 3 {
+            let orderA = try? InventoryService.sell(
+                lines: [
+                    .init(item: inStock[0], price: inStock[0].listPriceCNY),
+                    .init(item: inStock[1], price: inStock[1].listPriceCNY),
+                ],
+                customerName: "陈先生", customerContact: "13600001111",
+                discountCNY: 200, roundingCNY: 88, paymentMethod: .transfer,
+                in: context
+            )
+            if let orderA, inStock.count >= 4 {
+                let orderB = try? InventoryService.sell(
+                    lines: [.init(item: inStock[2], price: inStock[2].listPriceCNY)],
+                    customerName: "林女士", customerContact: "13500002222",
+                    discountCNY: 0, roundingCNY: 0, paymentMethod: .cash,
+                    in: context
+                )
+                if orderB != nil {
+                    _ = try? OrderService.returnItems([inStock[2]], from: orderB!, in: context)
+                }
+            }
+            _ = orderA
+        }
     }
 }
 #endif

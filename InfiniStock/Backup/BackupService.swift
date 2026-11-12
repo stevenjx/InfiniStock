@@ -73,7 +73,9 @@ enum BackupService {
                 roundingCNY: order.roundingCNY.plainString,
                 paymentMethod: order.paymentMethodRaw,
                 sequenceYear: order.sequenceYear,
-                sequenceNumber: order.sequenceNumber
+                sequenceNumber: order.sequenceNumber,
+                returnedAmountCNY: order.returnedAmountCNY.plainString,
+                returnedCount: order.returnedCount
             )
         }
 
@@ -239,6 +241,8 @@ enum BackupService {
             order.createdAt = dto.createdAt
             order.originDeviceID = dto.originDeviceID
             order.voidedAt = dto.voidedAt
+            order.returnedAmountCNY = (dto.returnedAmountCNY ?? "0").decimalValue
+            order.returnedCount = dto.returnedCount ?? 0
             order.sequenceYear = dto.sequenceYear ?? Calendar.current.component(.year, from: dto.createdAt)
             order.sequenceNumber = dto.sequenceNumber ?? (OrderNumberFactory.parse(dto.number)?.sequence ?? 0)
             // 旧备份按解析出的序号补齐单号

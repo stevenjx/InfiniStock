@@ -27,6 +27,8 @@ struct ReceiptDocument {
     let paymentMethod: String
     let warrantyDays: Int
     let footnote: String
+    let returnedCount: Int
+    let returnedAmount: Decimal
 
     init(order: Order, settings: ShopSettings = .load()) {
         number = order.number
@@ -54,6 +56,8 @@ struct ReceiptDocument {
         paymentMethod = order.paymentMethod.rawValue
         warrantyDays = settings.warrantyDays
         footnote = settings.footnote
+        returnedCount = order.returnedCount
+        returnedAmount = order.returnedAmountCNY
     }
 
     /// 供验证与预览构造
@@ -62,7 +66,8 @@ struct ReceiptDocument {
         lines: [Line], shopName: String = "", shopPhone: String = "", shopAddress: String = "",
         subtotal: Decimal? = nil, discount: Decimal = 0, rounding: Decimal = 0,
         total: Decimal? = nil, paymentMethod: String = PaymentMethod.cash.rawValue,
-        warrantyDays: Int = 7, footnote: String = ""
+        warrantyDays: Int = 7, footnote: String = "",
+        returnedCount: Int = 0, returnedAmount: Decimal = 0
     ) {
         self.number = number
         self.issuedAt = issuedAt
@@ -80,5 +85,7 @@ struct ReceiptDocument {
         self.paymentMethod = paymentMethod
         self.warrantyDays = warrantyDays
         self.footnote = footnote
+        self.returnedCount = returnedCount
+        self.returnedAmount = returnedAmount
     }
 }

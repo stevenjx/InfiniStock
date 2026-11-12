@@ -27,6 +27,10 @@ final class Order {
     var sequenceYear: Int = 0
     var sequenceNumber: Int = 0
 
+    /// 累计退货金额与台数，仅用于凭证展示；应收与毛利已按净额重算
+    var returnedAmountCNY: Decimal = 0
+    var returnedCount: Int = 0
+
     @Relationship(deleteRule: .nullify, inverse: \Item.order)
     var items: [Item]? = []
 
@@ -40,18 +44,32 @@ final class Order {
     }
 
     var isVoided: Bool { voidedAt != nil }
+
+    var hasReturns: Bool { returnedCount > 0 }
+
+    /// 全部机器都已退走（与"手工作废"区分开）
+    var isFullyReturned: Bool { isVoided && hasReturns }
+
+    var statusLabel: String {
+        if isFullyReturned { return "已全退" }
+        if isVoided { return "已作废" }
+        if hasReturns { return "部分退货" }
+        return "有效"
+    }
 }
 
 enum OrderError: LocalizedError {
     case alreadyVoided(String)
     case noItems(String)
     case sequenceExhausted(Int)
+    case notInOrder(String, String)
 
     var errorDescription: String? {
         switch self {
         case .alreadyVoided(let number): "单据 \(number) 已作废"
         case .noItems(let number): "单据 \(number) 没有关联机器，无法操作"
         case .sequenceExhausted(let year): "\(year) 年单号已用尽（9999），请检查数据"
+        case .notInOrder(let serial, let number): "序列号 \(serial) 不属于单据 \(number)"
         }
     }
 }
