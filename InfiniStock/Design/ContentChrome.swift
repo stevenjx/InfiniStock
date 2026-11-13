@@ -163,11 +163,33 @@ struct FilterPill: View {
     }
 }
 
+/// 详情栏的收起动作。由 RootView 注入，详情面板的标题条读到它就多画一个 ✕。
+/// 用环境值而不是给六个详情视图各加一个参数：面板头统一在这里，收起行为也统一在这里。
+///
+/// 包一层按 id 比较的结构体，而不是直接把闭包塞进 `@Entry`：
+/// 闭包不满足 Equatable，宏会推断"每次更新都让依赖方失效"，编译期就会告警。
+struct DetailDismissAction: Equatable {
+    private let id = UUID()
+    let handler: () -> Void
+
+    init(_ handler: @escaping () -> Void) {
+        self.handler = handler
+    }
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
+}
+
+extension EnvironmentValues {
+    @Entry var dismissDetail: DetailDismissAction?
+}
+
 /// 详情栏的标题条：与列表工具条同高、同底色，右栏因此不再是一摞悬空卡片。
 struct PanelHeader<Trailing: View>: View {
     let title: String
     var subtitle: String?
     @ViewBuilder var trailing: Trailing
+
+    @Environment(\.dismissDetail) private var dismissDetail
 
     var body: some View {
         HStack(alignment: .center, spacing: Token.Space.s) {
@@ -184,6 +206,18 @@ struct PanelHeader<Trailing: View>: View {
             }
             Spacer(minLength: Token.Space.s)
             trailing
+            if let dismissDetail {
+                Button(action: dismissDetail.handler) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Token.Ink.secondary)
+                        .frame(width: 20, height: 20)
+                        .background(Token.Surface.field, in: .circle)
+                }
+                .buttonStyle(.plain)
+                .help("收起详情（⌥⌘D）")
+                .accessibilityLabel("收起详情")
+            }
         }
         .padding(.horizontal, Token.Space.m)
         .frame(height: 46)

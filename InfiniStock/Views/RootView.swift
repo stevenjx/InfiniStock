@@ -64,6 +64,11 @@ struct RootView: View {
     /// 两边一旦错位，输入框里的价格就会对不上机器。
     @State private var saleItems: [Item] = []
     @State private var showingInspector = false
+    /// 详情栏是否展开。收起来之后列表独占整栏，不再被固定宽度的右栏挤着。
+    /// 存进 UserDefaults：下次打开还是上次的选择，不用每次手动收起。
+    @AppStorage("infinistock.detailVisible") private var detailVisible = true
+    /// 从列表批量条/右键菜单发起的改标价
+    @State private var editingItem: Item?
     @State private var pendingDelete: [Item] = []
     @State private var deleteError: String?
 
@@ -71,30 +76,60 @@ struct RootView: View {
     @Query private var allOrders: [Order]
     @Query private var allBatches: [Batch]
 
+    /// 系统开了「减弱动态效果」就不要再补间动画，直接切换
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         @Bindable var appState = appState
 
         NavigationSplitView {
             sidebar
                 .navigationSplitViewColumnWidth(min: 158, ideal: 176, max: 220)
-        } content: {
-            contentColumn(searchPresented: $appState.showingSearch)
-                .navigationSplitViewColumnWidth(min: 480, ideal: 720)
         } detail: {
-            detailPane
-                .inspector(isPresented: $showingInspector) {
-                    CostInspector(items: selectedItems)
-                        .inspectorColumnWidth(min: 230, ideal: 270, max: 340)
+            HStack(spacing: 0) {
+                contentColumn(searchPresented: $appState.showingSearch)
+
+                if detailVisible {
+                    detailPane
+                        .frame(minWidth: 304, idealWidth: 340, maxWidth: 420)
+                        .background(Token.Surface.card)
+                        .overlay(alignment: .leading) {
+                            Rectangle()
+                                .fill(Token.Border.hairline)
+                                .frame(width: 1)
+                        }
+                        .environment(\.dismissDetail, DetailDismissAction { setDetailVisible(false) })
+                        // 只做淡入，不做位移：位移会和容器变窄同时进行，看起来像面板从内容底下抽出来。
+                        // 宽度本身仍然插值，多余宽度由表格末尾那列空占位吸收，其余列不重排。
+                        .transition(.opacity)
                 }
+            }
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: detailVisible)
+            .inspector(isPresented: $showingInspector) {
+                CostInspector(items: selectedItems)
+                    .inspectorColumnWidth(min: 230, ideal: 270, max: 340)
+            }
         }
-        .frame(minWidth: 1080, minHeight: 700)
+        .frame(minWidth: 960, minHeight: 620)
+        // 系统标题栏默认用窗口材质，和这套暖白画布不是一回事，会横出一条灰带。
+        // 显式铺成画布色，标题栏和内容才连成一片。
+        .toolbarBackground(Token.Surface.canvas, for: .windowToolbar)
+        .background(WindowFrameGuard())
         .sheet(isPresented: $appState.showingIntake) { IntakeSheet() }
         .sheet(isPresented: $appState.showingImport) { ImportSheet() }
         .sheet(isPresented: $appState.showingSettings) {
             NavigationStack { SettingsView() }
-                .frame(minWidth: 520, minHeight: 520)
+                .frame(minWidth: 760, minHeight: 560)
         }
         .sheet(isPresented: $showingSale) { SaleSheet(items: saleItems) }
+        .sheet(isPresented: Binding(
+            get: { editingItem != nil },
+            set: { if !$0 { editingItem = nil } }
+        )) {
+            if let editingItem {
+                ItemEditSheet(item: editingItem)
+            }
+        }
         .onChange(of: appState.showingDashboard) { _, showing in
             if showing {
                 openWindow(id: "dashboard")
@@ -110,6 +145,11 @@ struct RootView: View {
             guard let request else { return }
             section = request
             appState.sectionRequest = nil
+        }
+        .onChange(of: appState.detailToggleRequest) { _, requested in
+            guard requested else { return }
+            appState.detailToggleRequest = false
+            setDetailVisible(!detailVisible)
         }
         .onChange(of: showingSale) { _, isPresented in
             if !isPresented { itemSelection.removeAll() }
@@ -155,8 +195,15 @@ struct RootView: View {
     ///
     ///   ~/Library/Containers/com.infinistock.app/Data/Library/Application Support/ui.flag
     ///
-    /// 内容按行写 `section=report` / `dark`，读完即删。
-    /// 不参与 Release 构建，也不碰 UserDefaults。
+    /// 内容按行写，读完即删：
+    ///
+    ///   section=report | orders | batches | customers | todos
+    ///   dark / light        强制外观
+    ///   detail=off          收起详情栏
+    ///   select=first|sold|unpriced   选中一台机器
+    ///   settings            0.5 秒后弹出设置
+    ///
+    /// 不参与 Release 构建，也不碰 UserDefaults（`detail=off` 会写 AppStorage，属例外）。
     private func applyDebugUIRequest() {
         guard let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
             return
@@ -183,6 +230,32 @@ struct RootView: View {
         }
 
         if lines.contains("dark") { debugScheme = .dark }
+        if lines.contains("light") { debugScheme = .light }
+        if value("detail") == "off" { detailVisible = false }
+        if value("detail") == "on" { detailVisible = true }
+
+        // 截图详情面板用：按状态挑一台自动选中，省掉手点
+        let target: Item? = switch value("select") {
+        case "first": allItems.first { $0.status == .inStock }
+        case "sold": allItems.first { $0.status == .sold }
+        case "unpriced": allItems.first { $0.status == .inStock && $0.listPrice <= 0 }
+        default: nil
+        }
+        if let target { itemSelection = [target.id] }
+
+        // 截图验收设置窗口：等首帧渲染完再弹，否则 sheet 会被同一轮布局吞掉
+        if lines.contains("settings") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                appState.showingSettings = true
+            }
+        }
+
+        // 同理，截图验收统计窗口
+        if lines.contains("dashboard") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                appState.showingDashboard = true
+            }
+        }
     }
     #endif
 
@@ -234,6 +307,19 @@ struct RootView: View {
                 .menuStyle(.borderlessButton)
                 .menuIndicator(.hidden)
                 .fixedSize()
+
+                Button {
+                    setDetailVisible(!detailVisible)
+                } label: {
+                    Image(systemName: "sidebar.right")
+                        .font(.system(size: 12, weight: .medium))
+                        // 图标本身就表示状态：开着用品牌色，收起时退回次要灰
+                        .foregroundStyle(detailVisible ? Token.Accent.brand : Token.Ink.secondary)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help(detailVisible ? "收起详情（⌥⌘D）" : "展开详情（⌥⌘D）")
+                .accessibilityLabel(detailVisible ? "收起详情" : "展开详情")
             }
                 .padding(.horizontal, Token.Space.l)
                 .padding(.top, Token.Space.m)
@@ -278,9 +364,12 @@ struct RootView: View {
         case .report:
             sectionBody(searchPresented: searchPresented)
                 .cardSurface()
-        case .stock:
-            sectionBody(searchPresented: searchPresented)
-                .cardSurface()
+        case .stock(let status):
+            VStack(spacing: Token.Space.m) {
+                StockKpiStrip(statusFilter: status)
+                sectionBody(searchPresented: searchPresented)
+                    .cardSurface()
+            }
         }
     }
 
@@ -310,9 +399,21 @@ struct RootView: View {
                 statusFilter: status,
                 selection: $itemSelection,
                 searchPresented: searchPresented,
+                detailVisible: detailVisible,
                 onStatusChange: { section = .stock($0) },
                 onDeleteRequest: { pendingDelete = $0 },
-                onIntake: { appState.showingIntake = true }
+                onIntake: { appState.showingIntake = true },
+                onSell: { items in
+                    // 先选中再打开：出库单取消后，选中的仍是这批机器
+                    itemSelection = Set(items.map(\.id))
+                    saleItems = items
+                    showingSale = true
+                },
+                onEdit: { editingItem = $0 },
+                onShowDetail: { item in
+                    itemSelection = [item.id]
+                    setDetailVisible(true)
+                }
             )
         case .orders:
             OrdersView(
@@ -333,22 +434,9 @@ struct RootView: View {
         }
     }
 
-    /// 页面头右侧摘要，口径与列表同源
+    /// 页头不再报数：库存页的结论已经由 KPI 卡承担，重复一遍只是噪音
     private var headerItems: [PageHeaderSummary] {
-        switch activeSection {
-        case .stock(let status):
-            let pool = allItems.filter { status == nil || $0.status == status }
-            let cost = pool.reduce(Decimal(0)) { $0 + $1.landedCost }
-            let listed = pool.reduce(Decimal(0)) { $0 + $1.listPrice }
-            return [
-                .init(label: status?.label ?? "全部", value: "\(pool.count) 台"),
-                .init(label: "成本", value: cost.mmk),
-                .init(label: "标价", value: listed.mmk),
-            ]
-        case .todos, .orders, .batches, .customers, .report:
-            // 金额已由页面上方的 KPI 卡承担，页头不再重复报数
-            return []
-        }
+        []
     }
 
     /// 未选中机器时的落脚点
@@ -481,6 +569,12 @@ struct RootView: View {
         guard canSell else { return }
         saleItems = selectedItems
         showingSale = true
+    }
+
+    private func setDetailVisible(_ visible: Bool) {
+        // 动画曲线交给 HStack 上的 .animation(.easeOut(duration: 0.18))，
+        // 这里再包一层 withAnimation 会和它打架，两边各用一条曲线。
+        detailVisible = visible
     }
 
     private func performBatchDelete() async {

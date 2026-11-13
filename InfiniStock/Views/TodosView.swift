@@ -154,6 +154,9 @@ struct TodosView: View {
                 .foregroundStyle(isSelected(entry) ? Token.Ink.onAccent : Token.Accent.brand)
             }
             .width(min: 52, ideal: 60)
+
+            // 末尾空列吸收多余宽度，避免最后一列被拉满整张卡
+            TableColumn("") { _ in EmptyView() }
         }
         .tableStyle(.inset(alternatesRowBackgrounds: false))
         .overlay {

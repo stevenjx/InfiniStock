@@ -129,6 +129,9 @@ struct BatchesView: View {
                 )
             }
             .width(min: 56, ideal: 64)
+
+            // 末尾空列吸收多余宽度，避免最后一列被拉满整张卡
+            TableColumn("") { _ in EmptyView() }
         }
         .tableStyle(.inset(alternatesRowBackgrounds: false))
         .overlay {

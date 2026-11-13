@@ -21,7 +21,7 @@ struct SaleSheet: View {
     @State private var roundingText = ""
     /// 实收金额。留空表示当场全额收讫，填了就按差额记欠款。
     @State private var paidText = ""
-    @State private var paymentMethod: PaymentMethod = .cash
+    @State private var paymentMethod: PaymentMethod = ShopSettings.load().paymentMethod
     @State private var errorMessage: String?
     /// 出库成功后不立刻关窗：单号、实收、毛利要让人看见一眼，
     /// 否则点完按钮窗口消失，等于没有回执。
@@ -106,6 +106,9 @@ struct SaleSheet: View {
         }
         .frame(minWidth: 640, idealWidth: 700, minHeight: 560, idealHeight: 680)
         .background(Token.Surface.canvas)
+        // 出库是从详情栏里弹出来的，会继承「收起详情」环境值；
+        // 标题条在这里不该出现 ✕，否则点了收起的是背后的详情栏而不是这张单。
+        .environment(\.dismissDetail, nil)
         .alert("出库失败", isPresented: Binding(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }

@@ -15,17 +15,15 @@ struct ItemDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            PanelHeader(title: "详情", subtitle: item.status.label) {
-                Badge(
-                    text: item.status.label,
-                    tone: item.status.tone,
-                    style: item.status == .inStock ? .outline : .filled
-                )
-            }
+            // 副标题放序列号：状态在下面的徽章里，标题条再写一遍「在库」是重复信息
+            PanelHeader(title: "详情", subtitle: item.serialNumber)
 
             ScrollView {
                 ItemDetailContent(item: item)
             }
+            // 换一台机器就回到顶部。否则在上一台滚到照片位置，选中下一台还停在那里，
+            // 开头最该看的型号与价格被滚出了视野。
+            .id(item.persistentModelID)
 
             PanelFooter {
                 Button("改标价") { showingEdit = true }
@@ -127,121 +125,49 @@ struct ItemDetailView: View {
 }
 
 /// 详情页内容（不含滚动与工具栏），可直接渲染成图验收。
-/// 结构对齐参考图：整幅照片 → 大号型号名 → 分区字段，一眼先看到"这是什么机器"。
+///
+/// 顺序按「先决策、后档案」：型号与状态 → 价格（含建议价）→ 照片 → 成本 → 机况 → 单据。
+/// 原来是六段等权堆叠，8 行机况压在最前面，最该看的毛利要滚一屏才看得到。
 struct ItemDetailContent: View {
     let item: Item
 
+    @Environment(\.modelContext) private var modelContext
+    /// 只读一次设置：这里每帧都读会每帧解码一次 JSON。
+    /// 改设置后重开详情即可看到新的目标毛利。
+    @State private var settings = ShopSettings.load()
+
+    private var isSold: Bool { item.status == .sold }
+
+    private var advice: PricingAdvice? {
+        guard !isSold, settings.targetMarginPercent > 0 else { return nil }
+        return PricingAdvice.make(for: item, targetMarginPercent: settings.targetMarginPercent)
+    }
+
+    /// 卖出去的机器，成交价才是事实上的价格
+    private var headlineBase: Decimal {
+        isSold ? item.soldPrice : item.listPrice
+    }
+
+    private var headlineProfit: Decimal {
+        isSold ? item.grossProfit : item.listPrice - item.landedCost
+    }
+
+    private var currencyLoss: Decimal {
+        item.currencyLoss(at: settings.defaultExchangeRate)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            photo
             identity
-
-            PanelSection(title: "机器") {
-                KeyValueRow(label: "芯片", value: item.chip)
-                KeyValueRow(label: "内存", value: item.memory)
-                KeyValueRow(label: "存储", value: item.storage)
-                KeyValueRow(label: "颜色", value: item.color)
-                KeyValueRow(label: "成色", value: item.condition.rawValue)
-                KeyValueRow(
-                    label: "电池健康",
-                    value: item.batteryHealth > 0 ? item.batteryHealthText : "未检测",
-                    valueTone: item.isBatteryWeak ? .warn : nil
-                )
-                KeyValueRow(label: "循环次数", value: item.batteryCycles > 0 ? item.batteryCyclesText : "未检测")
-                KeyValueRow(label: "入库时间", value: item.inboundAt.compactStamp)
-            }
-
-            PanelSection(title: "成本") {
-                KeyValueRow(label: "进价", value: item.costCNY.cny)
-                KeyValueRow(label: "汇率", value: "1 元 = \(Money.text(item.exchangeRate)) 缅币")
-                KeyValueRow(label: "进价折缅币", value: item.costMMK.mmk)
-                KeyValueRow(label: "运费", value: item.shipping.mmk)
-                KeyValueRow(label: "总进价", value: item.landedCost.mmk)
-                if let batch = item.batch {
-                    KeyValueRow(label: "批次", value: batch.name)
-                }
-                // 汇率风险落到具体数字：标价换回人民币刚好回本的那个汇率，
-                // 和今天的汇率一比，就知道这台机器现在结汇是赚是亏。
-                if let breakEven = item.breakEvenRate {
-                    KeyValueRow(
-                        label: "回本汇率",
-                        value: Money.text(breakEven),
-                        valueTone: breakEvenTone(breakEven)
-                    )
-                    let current = ShopSettings.load().defaultExchangeRate
-                    let loss = item.currencyLoss(at: current)
-                    if loss > 0 {
-                        KeyValueRow(
-                            label: "结汇亏损",
-                            value: "−\(loss.cny)",
-                            valueTone: .danger
-                        )
-                    }
-                }
-            }
-
-            PanelSection(title: "价格") {
-                KeyValueRow(label: "标价", value: item.listPrice.mmk)
-                if item.status == .sold {
-                    KeyValueRow(label: "成交价", value: item.soldPrice.mmk)
-                    KeyValueRow(
-                        label: "毛利",
-                        value: item.grossProfit.signedMMK,
-                        valueTone: item.grossProfit < 0 ? .danger : .ok
-                    )
-                } else {
-                    let expected = item.listPrice - item.landedCost
-                    KeyValueRow(
-                        label: "预计毛利",
-                        value: expected.signedMMK,
-                        valueTone: expected < 0 ? .danger : .ok
-                    )
-                    KeyValueRow(label: "毛利率", value: marginText(expected, base: item.listPrice))
-                }
-            }
-
-            if let order = item.order {
-                PanelSection(title: "单据") {
-                    KeyValueRow(label: "单号", value: order.number)
-                    KeyValueRow(label: "客户", value: order.customerName)
-                    KeyValueRow(label: "联系方式", value: order.customerContact)
-                    KeyValueRow(label: "收款方式", value: order.paymentMethod.rawValue)
-                    KeyValueRow(
-                        label: "出库时间",
-                        value: (item.soldAt ?? order.createdAt).compactStamp
-                    )
-                    if order.hasReturns {
-                        KeyValueRow(label: "售后", value: "本单已退 \(order.returnedCount) 台", valueTone: .warn)
-                    }
-                }
-            }
-
-            PanelSection(title: "实物照片") {
-                PhotoField(item: item)
-            }
+            priceBand
+            photoSection
+            costSection
+            specSection
+            orderSection
         }
     }
 
-    /// 整幅照片位。用 Rectangle 打底，保证无论有没有照片都铺满面板宽度。
-    private var photo: some View {
-        Rectangle()
-            .fill(Token.Surface.field)
-            .frame(height: 148)
-            .overlay {
-                if let data = item.photoData, let image = NSImage(data: data) {
-                    Image(nsImage: image)
-                        .resizable()
-                        .scaledToFill()
-                } else {
-                    Image(systemName: "laptopcomputer")
-                        .font(.system(size: 44, weight: .ultraLight))
-                        .foregroundStyle(Token.Ink.tertiary)
-                }
-            }
-            .clipped()
-            .overlay(alignment: .bottom) { Hairline() }
-            .accessibilityLabel(Text(item.photoData == nil ? "暂无实物照片" : "实物照片"))
-    }
+    // MARK: - 身份
 
     private var identity: some View {
         VStack(alignment: .leading, spacing: 5) {
@@ -270,8 +196,8 @@ struct ItemDetailContent: View {
                 }
             }
 
-            if !item.specSummary.isEmpty {
-                Text(item.specSummary)
+            if !identityCaption.isEmpty {
+                Text(identityCaption)
                     .font(Token.Typography.caption)
                     .foregroundStyle(Token.Ink.tertiary)
             }
@@ -282,14 +208,203 @@ struct ItemDetailContent: View {
         .overlay(alignment: .bottom) { Hairline() }
     }
 
+    /// 规格与电池压成一行。电池没测过就不写「未检测」——每台都挂个空值等于噪音
+    private var identityCaption: String {
+        var parts = [item.memory, item.storage, item.color].filter { !$0.isEmpty }
+        if item.batteryHealth > 0 { parts.append("电池 \(item.batteryHealth)%") }
+        if item.batteryCycles > 0 { parts.append("\(item.batteryCycles) 次循环") }
+        return parts.joined(separator: " · ")
+    }
+
+    // MARK: - 价格
+
+    /// 价格带：整个面板唯一用品牌浅底的位置，一眼知道该看这里。
+    private var priceBand: some View {
+        VStack(alignment: .leading, spacing: Token.Space.s) {
+            HStack(alignment: .top, spacing: Token.Space.m) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(isSold ? "成交价" : "标价")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(Token.Ink.secondary)
+                    headlineValue
+                }
+                Spacer(minLength: 0)
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(isSold ? "毛利" : "预计毛利")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(Token.Ink.secondary)
+                    // 没定价就没有毛利可言。把「0 − 成本」当亏损报出来，是拿一个不存在的价格算账
+                    if !isSold && item.listPrice <= 0 {
+                        Text("—")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(Token.Ink.tertiary)
+                    } else {
+                        Text(headlineProfit.signedMMK)
+                            .font(.system(size: 15, weight: .semibold).monospacedDigit())
+                            .foregroundStyle(headlineProfit < 0 ? Token.Status.danger : Token.Status.ok)
+                        Text(marginText(headlineProfit, base: headlineBase))
+                            .font(.system(size: 10))
+                            .foregroundStyle(Token.Ink.tertiary)
+                    }
+                }
+            }
+
+            if let advice {
+                adviceRow(advice)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(Token.Space.m)
+        .background(Token.Accent.fill)
+        .overlay(alignment: .bottom) { Hairline() }
+    }
+
+    @ViewBuilder
+    private var headlineValue: some View {
+        if headlineBase > 0 {
+            Text(headlineBase.mmk)
+                .font(Token.Typography.metric)
+                .foregroundStyle(Token.Ink.primary)
+        } else {
+            Text("未标价")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(Token.Status.warn)
+        }
+    }
+
+    /// 建议价并进价格带，不再单独占一段：它本来就是价格的一部分。
+    private func adviceRow(_ advice: PricingAdvice) -> some View {
+        let applied = item.listPrice > 0 && item.listPrice == advice.suggestedPrice
+        let gap = item.listPrice - advice.suggestedPrice
+        return VStack(alignment: .leading, spacing: 6) {
+            Rectangle()
+                .fill(Token.Accent.brand.opacity(0.22))
+                .frame(height: 1)
+
+            HStack(alignment: .firstTextBaseline, spacing: Token.Space.s) {
+                Text("建议价")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(Token.Ink.secondary)
+                Text(advice.suggestedPrice.mmk)
+                    .font(.system(size: 13, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(Token.Accent.brand)
+                Spacer(minLength: Token.Space.s)
+                if applied {
+                    Text("已采用")
+                        .font(Token.Typography.caption)
+                        .foregroundStyle(Token.Status.ok)
+                } else {
+                    Button("采用") { apply(advice) }
+                        .controlSize(.small)
+                        .help("把标价改为 \(advice.suggestedPrice.mmk)")
+                }
+            }
+
+            Text(adviceLine(advice, gap: gap))
+                .font(.system(size: 10))
+                .foregroundStyle(Token.Ink.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func adviceLine(_ advice: PricingAdvice, gap: Decimal) -> String {
+        var text = advice.explanation
+        if item.listPrice > 0, gap != 0 {
+            text += gap > 0
+                ? " · 当前比建议高 \(gap.mmk)"
+                : " · 当前比建议低 \((-gap).mmk)"
+        }
+        return text
+    }
+
+    private func apply(_ advice: PricingAdvice) {
+        item.listPrice = advice.suggestedPrice
+        // 与编辑弹窗同一个落盘路径；标价不参与 Spotlight 索引
+        try? modelContext.save()
+    }
+
+    // MARK: - 照片
+
+    private var photoSection: some View {
+        PanelSection(title: "实物照片") {
+            PhotoField(item: item)
+        }
+    }
+
+    // MARK: - 成本
+
+    private var costSection: some View {
+        PanelSection(title: "成本", trailing: item.batch?.name) {
+            // 先给结论（总进价），再拆构成；倒过来的话最该看的数字在最后一行
+            MetricGrid {
+                MetricCell(label: "总进价", value: item.landedCost.mmk)
+                MetricCell(label: "运费", value: item.shipping.mmk)
+                MetricCell(label: "进价", value: item.costCNY.cny)
+                MetricCell(label: "汇率", value: "1 元 = \(Money.text(item.exchangeRate))")
+                MetricCell(label: "进价折缅币", value: item.costMMK.mmk)
+                // 汇率风险只对还没卖掉的机器有意义：卖出去之后，结汇这件事已经发生
+                if !isSold, let breakEven = item.breakEvenRate {
+                    MetricCell(
+                        label: "回本汇率",
+                        value: Money.text(breakEven),
+                        tone: breakEvenTone(breakEven)
+                    )
+                }
+                if !isSold, currencyLoss > 0 {
+                    MetricCell(label: "结汇亏损", value: "−\(currencyLoss.cny)", tone: .danger)
+                }
+            }
+        }
+    }
+
+    // MARK: - 机况
+
+    private var specSection: some View {
+        PanelSection(title: "机况") {
+            MetricGrid {
+                MetricCell(label: "芯片", value: item.chip)
+                MetricCell(label: "内存", value: item.memory)
+                MetricCell(label: "存储", value: item.storage)
+                MetricCell(label: "颜色", value: item.color)
+                MetricCell(label: "成色", value: item.condition.rawValue)
+                MetricCell(
+                    label: "电池健康",
+                    value: item.batteryHealth > 0 ? item.batteryHealthText : "未检测",
+                    tone: item.isBatteryWeak ? .warn : nil
+                )
+                MetricCell(label: "循环次数", value: item.batteryCycles > 0 ? item.batteryCyclesText : "未检测")
+                MetricCell(label: "入库时间", value: item.inboundAt.compactStamp)
+            }
+        }
+    }
+
+    // MARK: - 单据
+
+    @ViewBuilder
+    private var orderSection: some View {
+        if let order = item.order {
+            PanelSection(title: "单据", trailing: order.number) {
+                MetricGrid {
+                    MetricCell(label: "客户", value: order.customerName)
+                    MetricCell(label: "联系方式", value: order.customerContact)
+                    MetricCell(label: "收款方式", value: order.paymentMethod.rawValue)
+                    MetricCell(label: "出库时间", value: (item.soldAt ?? order.createdAt).compactStamp)
+                    if order.hasReturns {
+                        MetricCell(label: "售后", value: "本单已退 \(order.returnedCount) 台", tone: .warn)
+                    }
+                }
+            }
+        }
+    }
+
     private func marginText(_ profit: Decimal, base: Decimal) -> String {
         guard base > 0 else { return "—" }
-        return "\((profit / base * 100).rounded(1))%"
+        return "毛利率 \((profit / base * 100).rounded(1))%"
     }
 
     /// 当前汇率高于回本汇率 = 按今天结汇是亏的
     private func breakEvenTone(_ breakEven: Decimal) -> Tone? {
-        let current = ShopSettings.load().defaultExchangeRate
+        let current = settings.defaultExchangeRate
         guard current > 0 else { return nil }
         return current > breakEven ? .danger : .ok
     }

@@ -216,3 +216,47 @@ struct EmptyState: View {
         .accessibilityLabel(Text("\(title)。\(message)"))
     }
 }
+
+/// 两列指标格。详情面板里成组的短字段用它。
+/// 一行一字段会把 8 个机况字段拉成一整屏，两列能省掉一半滚动。
+struct MetricGrid<Content: View>: View {
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        LazyVGrid(
+            columns: [
+                GridItem(.flexible(), spacing: Token.Space.m, alignment: .topLeading),
+                GridItem(.flexible(), spacing: Token.Space.m, alignment: .topLeading),
+            ],
+            alignment: .leading,
+            spacing: Token.Space.s
+        ) {
+            content
+        }
+    }
+}
+
+/// 指标格里的单格：小号标签在上，值在下。
+/// 面板只有 340pt 宽，两个字段并排时放不下「标签 76pt + 值」的横向排布，只能竖排。
+struct MetricCell: View {
+    let label: String
+    let value: String
+    var tone: Tone?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(label)
+                .font(.system(size: 10))
+                .foregroundStyle(Token.Ink.tertiary)
+            Text(value.isEmpty ? "—" : value)
+                .font(.system(size: 12.5))
+                .foregroundStyle(tone?.color ?? Token.Ink.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+                .textSelection(.enabled)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(Text("\(label)，\(value)"))
+    }
+}

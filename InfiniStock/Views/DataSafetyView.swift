@@ -56,7 +56,7 @@ struct DataSafetyView: View {
                 if backupFolder != nil {
                     Button("立即备份一次") { runBackup() }
                 }
-                Text("每天首次启动自动备份一次，保留最近 \(BackupService.retentionCount) 份。目录由你在系统面板中授权，App 之后才能持续写入。")
+                Text("每天首次启动自动备份一次（可在设置里关闭），保留最近 \(ShopSettings.load().backupRetention) 份。目录由你在系统面板中授权，App 之后才能持续写入。")
                     .font(.caption)
                     .foregroundStyle(Token.Ink.secondary)
             }

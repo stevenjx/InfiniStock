@@ -26,26 +26,34 @@ struct PhotoField: View {
                     }
                 }
             } else {
-                ZStack {
-                    RoundedRectangle(cornerRadius: Token.Radius.control)
-                        .fill(Token.Surface.sidebar)
+                // 没有照片时不再摆一块 132pt 的空框：一行高、可拖可点的窄条就够，
+                // 省下的高度留给价格和机况。
+                HStack(spacing: 10) {
+                    Image(systemName: "photo.badge.plus")
+                        .font(.system(size: 16, weight: .light))
+                        .foregroundStyle(Token.Ink.tertiary)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("拖入或选择照片")
+                            .font(Token.Typography.caption)
+                            .foregroundStyle(Token.Ink.secondary)
+                        Text("入库前会自动压到 1600px")
+                            .font(.system(size: 10))
+                            .foregroundStyle(Token.Ink.tertiary)
+                    }
+                    Spacer(minLength: 0)
+                    Button("选择…") { importing = true }
+                        .controlSize(.small)
+                }
+                .padding(.horizontal, Token.Space.m)
+                .frame(height: 60)
+                .background(Token.Surface.sidebar, in: .rect(cornerRadius: Token.Radius.control))
+                .overlay {
                     RoundedRectangle(cornerRadius: Token.Radius.control)
                         .strokeBorder(
                             isTargeted ? Token.Accent.brand : Token.Border.hairline,
                             lineWidth: isTargeted ? 1.5 : 1
                         )
-                    VStack(spacing: 6) {
-                        Image(systemName: "photo.badge.plus")
-                            .font(.system(size: 20, weight: .light))
-                            .foregroundStyle(Token.Ink.tertiary)
-                        Text("把照片拖到这里")
-                            .font(Token.Typography.caption)
-                            .foregroundStyle(Token.Ink.secondary)
-                        Button("选择照片…") { importing = true }
-                            .controlSize(.small)
-                    }
                 }
-                .frame(height: 132)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

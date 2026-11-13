@@ -19,7 +19,8 @@ struct DashboardView: View {
             DashboardContent(
                 stats: stats,
                 cloudSyncEnabled: cloudSyncEnabled,
-                backupConfigured: BackupService.backupFolder() != nil
+                backupConfigured: BackupService.backupFolder() != nil,
+                autoBackupEnabled: ShopSettings.load().autoBackupEnabled
             )
             .padding(Token.Space.l)
         }
@@ -46,10 +47,18 @@ struct DashboardContent: View {
     let stats: InventoryStatistics
     let cloudSyncEnabled: Bool
     let backupConfigured: Bool
+    /// 设置里关掉自动备份时也要提示——有目录不等于会在后台备份
+    var autoBackupEnabled: Bool = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: Token.Space.m) {
-            if !backupConfigured {
+            if !autoBackupEnabled {
+                AlertCard(
+                    title: "自动备份已关闭",
+                    message: "备份目录还在，但每天启动时不会自动写快照。点右上角「数据安全」可以手动备份，或在设置里重新打开。",
+                    tone: .warn
+                )
+            } else if !backupConfigured {
                 AlertCard(
                     title: "自动备份未启用",
                     message: "数据仅存本机。点右上角「数据安全」选一个备份目录，之后每天首次启动会自动备份。",
@@ -63,6 +72,7 @@ struct DashboardContent: View {
                 agingCard
                 paymentCard
             }
+            efficiencyCard
             alertSection
 
             if !cloudSyncEnabled {
@@ -281,6 +291,150 @@ struct DashboardContent: View {
             }
         }
         .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - 库存效率
+
+    /// 回答「这批货还能卖多久」。只看现有库存和近 30 天卖速，
+    /// 不引入历史快照，所以每个数字都能从库里现有的记录推回去。
+    private var efficiencyCard: some View {
+        SectionCard(title: "库存效率 · 近 \(stats.windowDays) 天") {
+            if stats.inStockCount == 0 && stats.soldInWindow == 0 {
+                EmptyState(
+                    title: "还没有数据",
+                    message: "入库并卖出第一台后，这里给出可售天数与型号售速",
+                    systemImage: "speedometer"
+                )
+                .frame(height: 120)
+            } else {
+                VStack(alignment: .leading, spacing: Token.Space.m) {
+                    HStack(alignment: .top, spacing: Token.Space.l) {
+                        efficiencyMetric(
+                            title: "可售天数",
+                            value: supplyText,
+                            hint: "按近 \(stats.windowDays) 天卖速",
+                            tone: supplyTone
+                        )
+                        metricDivider
+                        efficiencyMetric(
+                            title: "近 \(stats.windowDays) 天售出",
+                            value: "\(stats.soldInWindow) 台",
+                            hint: "在库 \(stats.inStockCount) 台"
+                        )
+                        metricDivider
+                        efficiencyMetric(
+                            title: "滞销占用",
+                            value: stats.slowMovingValue.mmk,
+                            hint: stats.slowMovingCount > 0
+                                ? "\(stats.slowMovingCount) 台超 \(Item.overdueDays) 天"
+                                : "无超期库存",
+                            tone: stats.slowMovingCount > 0 ? Token.Status.danger : Token.Ink.primary
+                        )
+                        Spacer(minLength: 0)
+                    }
+
+                    if !stats.velocity.isEmpty {
+                        Hairline()
+                        velocityTable
+                        Text("可售天数 = 在库 ÷ 近 \(stats.windowDays) 天日均销量；窗口内没有售出的型号标为「无成交」")
+                            .font(Token.Typography.caption)
+                            .foregroundStyle(Token.Ink.tertiary)
+                    }
+                }
+            }
+        }
+    }
+
+    private var supplyText: String {
+        guard stats.inStockCount > 0, let days = stats.daysOfSupply else { return "—" }
+        if days >= 365 { return "一年以上" }
+        return "\(days) 天"
+    }
+
+    /// 60 天以内正常，60–120 天偏慢，再长就是积压
+    private var supplyTone: Color {
+        guard let days = stats.daysOfSupply else { return Token.Status.danger }
+        if days > 120 { return Token.Status.danger }
+        if days > Item.overdueDays { return Token.Status.warn }
+        return Token.Status.ok
+    }
+
+    private func efficiencyMetric(
+        title: String,
+        value: String,
+        hint: String,
+        tone: Color = Token.Ink.primary
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(Token.Typography.caption)
+                .foregroundStyle(Token.Ink.tertiary)
+            Text(value)
+                .font(.system(size: 17, weight: .semibold).monospacedDigit())
+                .foregroundStyle(tone)
+            Text(hint)
+                .font(.system(size: 10))
+                .foregroundStyle(Token.Ink.tertiary)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var metricDivider: some View {
+        Rectangle()
+            .fill(Token.Border.hairline)
+            .frame(width: 1, height: 34)
+    }
+
+    private var velocityTable: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: Token.Space.s) {
+                Text("型号").frame(maxWidth: .infinity, alignment: .leading)
+                Text("售出").frame(width: 42, alignment: .trailing)
+                Text("在库").frame(width: 42, alignment: .trailing)
+                Text("可售").frame(width: 74, alignment: .trailing)
+            }
+            .font(Token.Typography.caption)
+            .foregroundStyle(Token.Ink.tertiary)
+            .padding(.bottom, 4)
+
+            ForEach(Array(stats.velocity.prefix(4))) { row in
+                Hairline()
+                HStack(spacing: Token.Space.s) {
+                    Text(row.model)
+                        .font(Token.Typography.cellPrimary)
+                        .foregroundStyle(Token.Ink.primary)
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text("\(row.soldCount)")
+                        .font(Token.Typography.money)
+                        .foregroundStyle(Token.Ink.secondary)
+                        .frame(width: 42, alignment: .trailing)
+                    Text("\(row.inStockCount)")
+                        .font(Token.Typography.money)
+                        .foregroundStyle(Token.Ink.secondary)
+                        .frame(width: 42, alignment: .trailing)
+                    Text(supplyLabel(row))
+                        .font(Token.Typography.caption)
+                        .foregroundStyle(supplyColor(row))
+                        .frame(width: 74, alignment: .trailing)
+                }
+                .padding(.vertical, 6)
+            }
+        }
+    }
+
+    private func supplyLabel(_ row: InventoryStatistics.ModelVelocity) -> String {
+        if row.inStockCount == 0 { return "已售罄" }
+        guard let days = row.daysOfSupply else { return "无成交" }
+        return days >= 365 ? "一年以上" : "\(days) 天"
+    }
+
+    private func supplyColor(_ row: InventoryStatistics.ModelVelocity) -> Color {
+        if row.inStockCount == 0 { return Token.Status.ok }
+        guard let days = row.daysOfSupply else { return Token.Status.danger }
+        if days > 120 { return Token.Status.danger }
+        if days > Item.overdueDays { return Token.Status.warn }
+        return Token.Ink.secondary
     }
 
     @ViewBuilder

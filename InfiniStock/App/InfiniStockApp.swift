@@ -19,9 +19,9 @@ struct InfiniStockApp: App {
         WindowGroup {
             RootView(cloudSyncEnabled: cloudSyncEnabled)
                 .environment(appState)
-                .frame(minWidth: 1080, minHeight: 700)
+                .frame(minWidth: 960, minHeight: 620)
         }
-        .defaultSize(width: 1360, height: 880)
+        .defaultSize(width: 1240, height: 820)
         .windowResizability(.contentMinSize)
         .modelContainer(container)
         .commands {
@@ -51,6 +51,13 @@ struct InfiniStockApp: App {
                     appState.showingDashboard = true
                 }
                 .keyboardShortcut("d", modifiers: [.command, .shift])
+
+                Divider()
+
+                Button("显示或隐藏详情") {
+                    appState.detailToggleRequest = true
+                }
+                .keyboardShortcut("d", modifiers: [.command, .option])
             }
             CommandGroup(after: .sidebar) {
                 Button("待办") { appState.sectionRequest = .todos }
@@ -77,7 +84,11 @@ struct InfiniStockApp: App {
         Window("统计", id: "dashboard") {
             DashboardView(cloudSyncEnabled: cloudSyncEnabled)
                 .environment(appState)
+                .frame(minWidth: 780, minHeight: 560)
+                .background(WindowFrameGuard())
         }
+        .defaultSize(width: 1060, height: 820)
+        .windowResizability(.contentMinSize)
         .modelContainer(container)
     }
 }
