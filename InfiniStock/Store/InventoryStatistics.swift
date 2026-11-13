@@ -25,6 +25,19 @@ struct InventoryStatistics {
         let count: Int
     }
 
+    /// 单个型号的售速。用来回答「哪一款压住了钱」。
+    struct ModelVelocity: Identifiable {
+        let id: String
+        let model: String
+        /// 窗口内售出台数
+        let soldCount: Int
+        let inStockCount: Int
+        let stockValue: Decimal
+        /// 按窗口内卖速，现有库存还能卖几天。
+        /// nil 表示窗口内一台没卖出去——那不是 0 天，是卖不动。
+        let daysOfSupply: Int?
+    }
+
     let inStockCount: Int
     let stockCostValue: Decimal
     let stockListedValue: Decimal
@@ -41,6 +54,20 @@ struct InventoryStatistics {
     /// 有效单据里还没收回来的钱
     let outstandingAmount: Decimal
     let outstandingOrderCount: Int
+
+    // MARK: - 周转
+
+    /// 售速统计窗口（天）。固定 30 天：够长到能看出趋势，够短到跟得上行情
+    let windowDays: Int
+    /// 窗口内售出台数
+    let soldInWindow: Int
+    /// 现有库存按窗口内售速还能卖几天；窗口内无成交时为 nil
+    let daysOfSupply: Int?
+    /// 库龄超期机器的占用成本
+    let slowMovingValue: Decimal
+    let slowMovingCount: Int
+    /// 按风险排序的型号售速（卖不动的排前面）
+    let velocity: [ModelVelocity]
 
     var overdueValue: Decimal {
         overdueItems.reduce(Decimal(0)) { $0 + $1.landedCost }
@@ -75,7 +102,8 @@ struct InventoryStatistics {
         orders: [Order] = [],
         now: Date = .now,
         calendar: Calendar = .current,
-        dayCount: Int = 7
+        dayCount: Int = 7,
+        windowDays: Int = 30
     ) {
         let inStock = items.filter { $0.status == .inStock }
         inStockCount = inStock.count
@@ -163,5 +191,58 @@ struct InventoryStatistics {
         lowMarginItems = inStock
             .filter { $0.listPrice > 0 && $0.listPrice < $0.landedCost }
             .sorted { ($0.listPrice - $0.landedCost) < ($1.listPrice - $1.landedCost) }
+
+        // MARK: 周转
+
+        self.windowDays = windowDays
+        let windowStart = calendar.date(
+            byAdding: .day, value: -windowDays, to: calendar.startOfDay(for: now)
+        ) ?? now
+
+        // 用 soldAt 而不是单据日期：部分退货后机器回到在库，soldAt 会被清空，
+        // 它算不算「卖过」应该由当前状态决定，而不是由历史单据决定。
+        let soldInWindowItems = items.filter { item in
+            guard item.status == .sold, let soldAt = item.soldAt else { return false }
+            return soldAt >= windowStart
+        }
+        soldInWindow = soldInWindowItems.count
+
+        daysOfSupply = soldInWindow > 0
+            ? Int((Double(inStockCount) * Double(windowDays) / Double(soldInWindow)).rounded())
+            : nil
+
+        slowMovingValue = overdueItems.reduce(Decimal(0)) { $0 + $1.landedCost }
+        slowMovingCount = overdueItems.count
+
+        // 按型号：窗口内卖出多少、还压着多少台、这些货还能卖几天。
+        // 排序把「卖不动」的型号顶到最前面——那是最该降价或清仓的。
+        let models = Set(items.map(\.modelName)).filter { !$0.isEmpty }
+        velocity = models.compactMap { model in
+            let stock = inStock.filter { $0.modelName == model }
+            let sold = soldInWindowItems.filter { $0.modelName == model }
+            guard !stock.isEmpty || !sold.isEmpty else { return nil }
+            let days: Int? = sold.isEmpty
+                ? nil
+                : Int((Double(stock.count) * Double(windowDays) / Double(sold.count)).rounded())
+            return ModelVelocity(
+                id: model,
+                model: model,
+                soldCount: sold.count,
+                inStockCount: stock.count,
+                stockValue: stock.reduce(Decimal(0)) { $0 + $1.landedCost },
+                daysOfSupply: days
+            )
+        }
+        .sorted { lhs, rhs in
+            switch (lhs.daysOfSupply, rhs.daysOfSupply) {
+            case (nil, nil): break
+            case (nil, _): return true
+            case (_, nil): return false
+            case let (l?, r?): if l != r { return l > r }
+            }
+            // 同档时占用资金多的排前面，最后用型号名兜底保证顺序稳定
+            if lhs.stockValue != rhs.stockValue { return lhs.stockValue > rhs.stockValue }
+            return lhs.model < rhs.model
+        }
     }
 }

@@ -1046,6 +1046,71 @@ struct Verify {
         check("仪表盘-毛利率 4000/11000", dashStats.todayMarginRate == Decimal(string: "36.4"),
               "\(String(describing: dashStats.todayMarginRate))")
 
+        // MARK: P3 库存周转
+
+        let velSchema = Schema([Item.self, Order.self, Batch.self])
+        let velConfig = ModelConfiguration(schema: velSchema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let velContainer = try ModelContainer(for: velSchema, configurations: [velConfig])
+        let vel = velContainer.mainContext
+
+        func daysAgo(_ n: Int) -> Date {
+            Calendar.current.date(byAdding: .day, value: -n, to: .now) ?? .now
+        }
+
+        @discardableResult
+        func velItem(
+            _ serial: String,
+            model: String,
+            cost: Decimal,
+            inStock: Bool,
+            soldDaysAgo: Int? = nil,
+            inboundDaysAgo: Int = 10
+        ) -> Item {
+            let item = Item(serialNumber: serial, modelName: model, costCNY: cost,
+                            exchangeRate: 1, shipping: 0, listPrice: 3000)
+            item.inboundAt = daysAgo(inboundDaysAgo)
+            if !inStock, let soldDaysAgo {
+                item.status = .sold
+                item.soldAt = daysAgo(soldDaysAgo)
+            }
+            vel.insert(item)
+            return item
+        }
+
+        // Alpha：窗口内卖 2 台、在库 2 台 → 2 × 30 ÷ 2 = 30 天
+        velItem("V1", model: "Alpha", cost: 1000, inStock: false, soldDaysAgo: 5, inboundDaysAgo: 20)
+        velItem("V2", model: "Alpha", cost: 1000, inStock: false, soldDaysAgo: 25, inboundDaysAgo: 40)
+        velItem("V3", model: "Alpha", cost: 1000, inStock: true)
+        velItem("V4", model: "Alpha", cost: 1000, inStock: true)
+        // 40 天前卖的落在窗口外，不计入 30 天售速
+        velItem("V5", model: "Alpha", cost: 1000, inStock: false, soldDaysAgo: 40, inboundDaysAgo: 60)
+        // Beta：3 台在库、一台没卖出去，其中一台库龄 100 天
+        velItem("V6", model: "Beta", cost: 2000, inStock: true)
+        velItem("V7", model: "Beta", cost: 2000, inStock: true)
+        velItem("V8", model: "Beta", cost: 2000, inStock: true, inboundDaysAgo: 100)
+
+        let velStats = InventoryStatistics(items: try vel.fetch(FetchDescriptor<Item>()), orders: [])
+
+        check("周转-窗口 30 天", velStats.windowDays == 30, "\(velStats.windowDays)")
+        check("周转-窗口内售出 2 台", velStats.soldInWindow == 2, "\(velStats.soldInWindow)")
+        check("周转-可售天数 = 5×30÷2 = 75", velStats.daysOfSupply == 75,
+              "\(String(describing: velStats.daysOfSupply))")
+        check("周转-卖不动的型号排最前", velStats.velocity.first?.model == "Beta",
+              velStats.velocity.first?.model ?? "nil")
+        check("周转-卖不动的型号没有可售天数", velStats.velocity.first?.daysOfSupply == nil)
+        check("周转-Alpha 可售 30 天", velStats.velocity.last?.daysOfSupply == 30,
+              "\(String(describing: velStats.velocity.last?.daysOfSupply))")
+        check("周转-滞销占用只算超期那台", velStats.slowMovingValue == 2000, "\(velStats.slowMovingValue)")
+        check("周转-滞销台数 1", velStats.slowMovingCount == 1, "\(velStats.slowMovingCount)")
+
+        // 完全没有成交时不能报 0 天——那是「马上卖完」，与实际相反
+        let noSales = InventoryStatistics(
+            items: [velItem("V9", model: "Gamma", cost: 500, inStock: true)],
+            orders: []
+        )
+        check("周转-无成交时不给可售天数", noSales.daysOfSupply == nil)
+        check("周转-无成交型号标记为卖不动", noSales.velocity.first?.daysOfSupply == nil)
+
 
         // MARK: U5 客户聚合
 
@@ -1405,7 +1470,57 @@ struct Verify {
         )
         check("配置-往返保留默认汇率", rateRoundTrip.defaultExchangeRate == 420,
               "\(rateRoundTrip.defaultExchangeRate)")
-        check("配置-往返保留店名", rateRoundTrip.shopName == "曼德勒小店", rateRoundTrip.shopName)
+                check("配置-往返保留店名", rateRoundTrip.shopName == "曼德勒小店", rateRoundTrip.shopName)
+
+        // 二期新增的字段同样要能缺省回落：老用户的配置里没有这几项
+        check("配置-旧 JSON 回落目标毛利 15%", legacySettings.targetMarginPercent == 15,
+              "\(legacySettings.targetMarginPercent)")
+        check("配置-旧 JSON 回落默认收款方式", legacySettings.paymentMethod == .cash,
+              legacySettings.defaultPaymentMethod)
+        check("配置-旧 JSON 回落自动备份开启", legacySettings.autoBackupEnabled)
+        check("配置-旧 JSON 回落保留 14 份", legacySettings.backupRetention == 14,
+              "\(legacySettings.backupRetention)")
+
+        // MARK: 定价建议
+
+        // 总进价 K 1,000,000，目标毛利 20% → 售价 = 1,000,000 / 0.8 = 1,250,000
+        let fresh = PricingAdvice.make(landedCost: 1_000_000, targetMarginPercent: 20, ageInDays: 0)
+        check("定价-按毛利率反推基准价", fresh?.basePrice == 1_250_000, "\(String(describing: fresh?.basePrice))")
+        check("定价-新入库不折价", fresh?.markdownPercent == 0, "\(String(describing: fresh?.markdownPercent))")
+        check("定价-新入库建议价 = 基准价", fresh?.suggestedPrice == 1_250_000,
+              "\(String(describing: fresh?.suggestedPrice))")
+
+        // 库龄 30 天落在边界上，不该开始折价
+        let boundary = PricingAdvice.make(landedCost: 1_000_000, targetMarginPercent: 20, ageInDays: 30)
+        check("定价-库龄 30 天不折价", boundary?.markdownPercent == 0,
+              "\(String(describing: boundary?.markdownPercent))")
+
+        // 库龄 44 天 = 满 2 周 → 降 2%
+        let aged = PricingAdvice.make(landedCost: 1_000_000, targetMarginPercent: 20, ageInDays: 44)
+        check("定价-库龄 44 天降 2%", aged?.markdownPercent == 2, "\(String(describing: aged?.markdownPercent))")
+        check("定价-折价后按万取整", aged?.suggestedPrice == 1_230_000,
+              "\(String(describing: aged?.suggestedPrice))")
+
+        // 库龄再长也只封顶 15%
+        let staleAdvice = PricingAdvice.make(landedCost: 1_000_000, targetMarginPercent: 20, ageInDays: 900)
+        check("定价-折价封顶 15%", staleAdvice?.markdownPercent == 15, "\(String(describing: staleAdvice?.markdownPercent))")
+
+        // 目标毛利 0% 时基准价 = 成本，库龄折价会把它压到成本以下 → 必须托底
+        let zeroMargin = PricingAdvice.make(landedCost: 1_000_000, targetMarginPercent: 0, ageInDays: 200)
+        check("定价-建议价不低于总进价", (zeroMargin?.suggestedPrice ?? 0) >= 1_000_000,
+              "\(String(describing: zeroMargin?.suggestedPrice))")
+
+        check("定价-无成本不给建议", PricingAdvice.make(landedCost: 0, targetMarginPercent: 20, ageInDays: 0) == nil)
+        check("定价-毛利率 100% 不给建议",
+              PricingAdvice.make(landedCost: 1_000_000, targetMarginPercent: 100, ageInDays: 0) == nil)
+
+        // 已售机器不该出现建议价
+        check("定价-已售机器不给建议",
+              PricingAdvice.make(for: item, targetMarginPercent: 20) == nil)
+
+        // 保留份数夹在 1…200：填 0 时不能把刚写好的备份一起删掉
+        check("备份-保留份数下限保护", min(max(0, 1), 200) == 1)
+        check("备份-保留份数上限保护", min(max(5000, 1), 200) == 200)
 
         print(failures == 0 ? "\nALL CHECKS PASSED" : "\n\(failures) CHECK(S) FAILED")
         exit(failures == 0 ? 0 : 1)

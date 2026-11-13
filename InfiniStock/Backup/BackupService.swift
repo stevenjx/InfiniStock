@@ -322,7 +322,9 @@ enum BackupService {
 
         UserDefaults.standard.set(now, forKey: lastBackupKey)
 
-        prune(in: folder)
+        // 保留份数由设置决定；夹在 1…200 之间，防止手误填 0 把刚写的备份删掉
+        let keep = min(max(ShopSettings.load().backupRetention, 1), 200)
+        prune(in: folder, keeping: keep)
         return url
     }
 
@@ -347,9 +349,10 @@ enum BackupService {
         }
     }
 
-    /// 每天首次启动自动备份一次；未选择目录时静默跳过（界面会提示未启用）。
+    /// 每天首次启动自动备份一次；未选择目录或用户在设置里关掉时静默跳过。
     @discardableResult
     static func autoBackupIfNeeded(from context: ModelContext, now: Date = .now) -> URL? {
+        guard ShopSettings.load().autoBackupEnabled else { return nil }
         guard let folder = backupFolder() else { return nil }
         if let last = lastBackupAt, Calendar.current.isDate(last, inSameDayAs: now) { return nil }
         return try? writeBackup(from: context, into: folder, now: now)
