@@ -25,26 +25,19 @@ struct ViewPreview {
             .modelContainer(container)
             .frame(width: 520, height: 980)
 
-        let inspector = InspectorContent(items: [first])
+        let summary = SelectionSummaryView(items: items)
             .modelContainer(container)
-            .padding(12)
-            .frame(width: 300, height: 460, alignment: .top)
+            .frame(width: 340, height: 620, alignment: .top)
 
         let stats = InventoryStatistics(items: items, orders: (try? context.fetch(FetchDescriptor<Order>())) ?? [])
         let dash = DashboardContent(stats: stats, cloudSyncEnabled: false, backupConfigured: false)
             .frame(width: 620)
 
-        let inspectorMulti = InspectorContent(items: items)
-            .modelContainer(container)
-            .padding(12)
-            .frame(width: 300, height: 300, alignment: .top)
-
         let content = HStack(alignment: .top, spacing: 0) {
             panel(.light, title: "详情 · 浅色") { detail }
             panel(.dark, title: "详情 · 深色") { detail }
             VStack(spacing: 0) {
-                panel(.light, title: "检查器") { inspector }
-                panel(.dark, title: "多选") { inspectorMulti }
+                panel(.light, title: "多选汇总") { summary }
                 panel(.dark, title: "仪表盘") { dash }
             }
         }

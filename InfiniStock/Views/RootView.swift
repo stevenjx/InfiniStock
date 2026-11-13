@@ -63,7 +63,6 @@ struct RootView: View {
     /// 它是每次 body 重算出来的新数组，而 sheet 内部的 @State 只在首次 init 时初始化，
     /// 两边一旦错位，输入框里的价格就会对不上机器。
     @State private var saleItems: [Item] = []
-    @State private var showingInspector = false
     /// 详情栏是否展开。收起来之后列表独占整栏，不再被固定宽度的右栏挤着。
     /// 存进 UserDefaults：下次打开还是上次的选择，不用每次手动收起。
     @AppStorage("infinistock.detailVisible") private var detailVisible = true
@@ -76,9 +75,6 @@ struct RootView: View {
     @Query private var allOrders: [Order]
     @Query private var allBatches: [Batch]
 
-    /// 系统开了「减弱动态效果」就不要再补间动画，直接切换
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
     var body: some View {
         @Bindable var appState = appState
 
@@ -86,29 +82,14 @@ struct RootView: View {
             sidebar
                 .navigationSplitViewColumnWidth(min: 158, ideal: 176, max: 220)
         } detail: {
-            HStack(spacing: 0) {
-                contentColumn(searchPresented: $appState.showingSearch)
-
-                if detailVisible {
+            contentColumn(searchPresented: $appState.showingSearch)
+                // 详情栏交给原生 inspector：滑入/滑出、可拖宽度、减弱动态效果
+                // 都是系统的行为，比自己拿 HStack 拼一列再插值宽度稳。
+                .inspector(isPresented: $detailVisible) {
                     detailPane
-                        .frame(minWidth: 304, idealWidth: 340, maxWidth: 420)
-                        .background(Token.Surface.card)
-                        .overlay(alignment: .leading) {
-                            Rectangle()
-                                .fill(Token.Border.hairline)
-                                .frame(width: 1)
-                        }
+                        .inspectorColumnWidth(min: 304, ideal: 340, max: 420)
                         .environment(\.dismissDetail, DetailDismissAction { setDetailVisible(false) })
-                        // 只做淡入，不做位移：位移会和容器变窄同时进行，看起来像面板从内容底下抽出来。
-                        // 宽度本身仍然插值，多余宽度由表格末尾那列空占位吸收，其余列不重排。
-                        .transition(.opacity)
                 }
-            }
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: detailVisible)
-            .inspector(isPresented: $showingInspector) {
-                CostInspector(items: selectedItems)
-                    .inspectorColumnWidth(min: 230, ideal: 270, max: 340)
-            }
         }
         .frame(minWidth: 960, minHeight: 620)
         // 系统标题栏默认用窗口材质，和这套暖白画布不是一回事，会横出一条灰带。
@@ -242,6 +223,9 @@ struct RootView: View {
         default: nil
         }
         if let target { itemSelection = [target.id] }
+        if value("select") == "many" {
+            itemSelection = Set(allItems.filter { $0.status == .inStock }.prefix(3).map(\.id))
+        }
 
         // 截图验收设置窗口：等首帧渲染完再弹，否则 sheet 会被同一轮布局吞掉
         if lines.contains("settings") {
@@ -297,10 +281,6 @@ struct RootView: View {
                 Menu {
                     Button("批量导入 CSV…") { appState.showingImport = true }
                     Button("统计") { openWindow(id: "dashboard") }
-                    Divider()
-                    Button(showingInspector ? "隐藏检查器" : "显示检查器") {
-                        showingInspector.toggle()
-                    }
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
@@ -472,12 +452,7 @@ struct RootView: View {
             if itemSelection.count == 1, let item = selectedItems.first {
                 ItemDetailView(item: item)
             } else if itemSelection.count > 1 {
-                DetailPlaceholder(
-                    title: "已选中 \(itemSelection.count) 台",
-                    message: "点工具栏「出库销售」批量处理，价格可逐台修改",
-                    systemImage: "square.stack.3d.up",
-                    subtitle: "多选"
-                )
+                SelectionSummaryView(items: selectedItems)
             } else {
                 RecentItemsPanel(items: recentItems) { item in
                     itemSelection = [item.id]
