@@ -137,7 +137,8 @@ struct SidebarView: View {
                 }
                 .buttonStyle(.plain)
                 .help("打开备份设置")
-                Text(shopName.isEmpty ? "未设置店名" : shopName)
+                // 店名是用户数据；没填时显示提示，提示要能翻译
+                Text(shopName.isEmpty ? String(localized: "未设置店名") : shopName)
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(Token.Ink.secondary)
                     .lineLimit(1)
@@ -152,7 +153,7 @@ struct SidebarView: View {
         settings.shopName.trimmingCharacters(in: .whitespaces)
     }
 
-    private func backupStatus(_ settings: ShopSettings) -> (text: String, tone: Color, healthy: Bool) {
+    private func backupStatus(_ settings: ShopSettings) -> (text: LocalizedStringResource, tone: Color, healthy: Bool) {
         if !settings.autoBackupEnabled {
             return ("自动备份已关闭", Token.Status.warn, false)
         }
@@ -170,7 +171,9 @@ struct SidebarView: View {
     }
 
     @ViewBuilder
-    private func group<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+    /// 分组标题必须收 LocalizedStringResource：Text(String) 不走词表，
+    /// 早期写成 String 导致侧栏「日常 / 交易 / 分析」在英文界面下仍是中文。
+    private func group<Content: View>(_ title: LocalizedStringResource, @ViewBuilder content: () -> Content) -> some View {
         Text(title)
             .font(.system(size: 10, weight: .semibold))
             .foregroundStyle(Token.Ink.tertiary)

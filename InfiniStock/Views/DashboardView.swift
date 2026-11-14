@@ -110,7 +110,7 @@ struct DashboardContent: View {
             )
             StatCard(
                 title: "在库台数",
-                value: String(localized: "\(stats.inStockCount) 台"),
+                value: "\(stats.inStockCount) 台",
                 systemImage: "shippingbox.fill",
                 tone: .neutral,
                 delta: stats.overdueItems.isEmpty ? "无呆滞" : String(localized: "\(stats.overdueItems.count) 台超期"),
@@ -121,7 +121,7 @@ struct DashboardContent: View {
                 value: stats.stockCostValue.mmk,
                 systemImage: "banknote.fill",
                 tone: .warn,
-                delta: String(localized: "标价合计 \(stats.stockListedValue.mmk)")
+                delta: "标价合计 \(stats.stockListedValue.mmk)"
             )
             StatCard(
                 title: "应收未收",
@@ -298,7 +298,7 @@ struct DashboardContent: View {
     /// 回答「这批货还能卖多久」。只看现有库存和近 30 天卖速，
     /// 不引入历史快照，所以每个数字都能从库里现有的记录推回去。
     private var efficiencyCard: some View {
-        SectionCard(title: String(localized: "库存效率 · 近 \(stats.windowDays) 天")) {
+        SectionCard(title: "库存效率 · 近 \(stats.windowDays) 天") {
             if stats.inStockCount == 0 && stats.soldInWindow == 0 {
                 EmptyState(
                     title: "还没有数据",
@@ -312,21 +312,21 @@ struct DashboardContent: View {
                         efficiencyMetric(
                             title: "可售天数",
                             value: supplyText,
-                            hint: String(localized: "按近 \(stats.windowDays) 天卖速"),
+                            hint: "按近 \(stats.windowDays) 天卖速",
                             tone: supplyTone
                         )
                         metricDivider
                         efficiencyMetric(
-                            title: String(localized: "近 \(stats.windowDays) 天售出"),
+                            title: "近 \(stats.windowDays) 天售出",
                             value: String(localized: "\(stats.soldInWindow) 台"),
-                            hint: String(localized: "在库 \(stats.inStockCount) 台")
+                            hint: "在库 \(stats.inStockCount) 台"
                         )
                         metricDivider
                         efficiencyMetric(
                             title: "滞销占用",
                             value: stats.slowMovingValue.mmk,
                             hint: stats.slowMovingCount > 0
-                                ? "\(stats.slowMovingCount) 台超 \(Item.overdueDays) 天"
+                                ? LocalizedStringResource(stringLiteral: String(localized: "\(stats.slowMovingCount) 台超 \(Item.overdueDays) 天"))
                                 : "无超期库存",
                             tone: stats.slowMovingCount > 0 ? Token.Status.danger : Token.Ink.primary
                         )
@@ -360,9 +360,9 @@ struct DashboardContent: View {
     }
 
     private func efficiencyMetric(
-        title: String,
+        title: LocalizedStringResource,
         value: String,
-        hint: String,
+        hint: LocalizedStringResource,
         tone: Color = Token.Ink.primary
     ) -> some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -453,21 +453,21 @@ struct DashboardContent: View {
                 ) {
                     ForEach(stats.lowMarginItems.prefix(3)) { item in
                         AlertCard(
-                            title: String(localized: "低于成本 · \(item.modelName)"),
+                            title: "低于成本 · \(item.modelName)",
                             message: "标价 \(item.listPrice.mmk) 低于总进价 \(item.landedCost.mmk)，每台亏 \((item.landedCost - item.listPrice).mmk)，建议调价",
                             tone: .danger
                         )
                     }
                     ForEach(stats.weakBatteryItems.prefix(3)) { item in
                         AlertCard(
-                            title: String(localized: "电池偏弱 · \(item.modelName)"),
+                            title: "电池偏弱 · \(item.modelName)",
                             message: "健康 \(item.batteryHealthText) · 循环 \(item.batteryCyclesText)，建议检测或作为议价点说明",
                             tone: .warn
                         )
                     }
                     ForEach(stats.overdueItems.prefix(3)) { item in
                         AlertCard(
-                            title: String(localized: "库存超期 · \(item.modelName)"),
+                            title: "库存超期 · \(item.modelName)",
                             message: "在库 \(item.ageInDays) 天，占用成本 \(item.landedCost.mmk)，建议促销或调价",
                             tone: .warn
                         )
@@ -487,7 +487,7 @@ struct DashboardContent: View {
         return "较昨日 \(sign)\(Money.text(change))%"
     }
 
-    private func legend(color: Color, label: String) -> some View {
+    private func legend(color: Color, label: LocalizedStringResource) -> some View {
         HStack(spacing: 4) {
             Circle().fill(color).frame(width: 6, height: 6)
             Text(label)

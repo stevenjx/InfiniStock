@@ -59,13 +59,49 @@ struct CellTitle: View {
 
 /// KPI 卡：图标 + 标签 + 数字 + 可选涨跌行。
 struct StatCard: View {
-    /// 标题可能来自筛选枚举的 label，保持本地化资源类型
+    /// 标题常来自筛选枚举的 label，保持本地化资源类型
     let title: LocalizedStringResource
-    let value: String
+    /// 指标值可能是「3 台」这种带单位的文案，也可能是纯金额
+    let value: LocalizedStringResource
     var systemImage: String
     var tone: Tone = .brand
-    var delta: String?
+    var delta: LocalizedStringResource?
     var deltaTone: Tone = .ok
+
+    /// 纯金额、纯台数这类动态值走这个重载
+    init(
+        title: LocalizedStringResource,
+        value: String,
+        systemImage: String,
+        tone: Tone = .brand,
+        delta: String? = nil,
+        deltaTone: Tone = .ok
+    ) {
+        self.title = title
+        // stringLiteral 不走词表，所以调用方必须传已经 String(localized:) 过的文案
+        self.value = LocalizedStringResource(stringLiteral: value)
+        self.systemImage = systemImage
+        self.tone = tone
+        self.delta = delta.map { LocalizedStringResource(stringLiteral: $0) }
+        self.deltaTone = deltaTone
+    }
+
+    /// 带单位、需要翻译的文案走这个重载
+    init(
+        title: LocalizedStringResource,
+        value: LocalizedStringResource,
+        systemImage: String,
+        tone: Tone = .brand,
+        delta: LocalizedStringResource? = nil,
+        deltaTone: Tone = .ok
+    ) {
+        self.title = title
+        self.value = value
+        self.systemImage = systemImage
+        self.tone = tone
+        self.delta = delta
+        self.deltaTone = deltaTone
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Token.Space.s) {
@@ -81,7 +117,7 @@ struct StatCard: View {
                     .lineLimit(1)
             }
 
-            Text(value)
+            Text(String(localized: value))
                 .font(Token.Typography.metric)
                 .foregroundStyle(Token.Ink.primary)
                 .lineLimit(1)
@@ -101,13 +137,11 @@ struct StatCard: View {
                 .strokeBorder(Token.Border.hairline, lineWidth: 1)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(Text("\(title)，\(value)\(delta.map { "，" + $0 } ?? "")"))
     }
 }
 
-/// 分节卡片：统一详情页/检查器的分节外观。
 struct SectionCard<Content: View>: View {
-    let title: String?
+    let title: LocalizedStringResource?
     @ViewBuilder var content: Content
 
     var body: some View {
@@ -177,6 +211,8 @@ struct KeyValueRow: View {
 }
 
 /// 警示卡：仪表盘的待办区。
+
+/// 警示卡：仪表盘的待办区。
 struct AlertCard: View {
     let title: String
     let message: String
@@ -208,11 +244,13 @@ struct AlertCard: View {
 
 /// 空状态：图标 + 一句说明 + 可选操作。
 struct EmptyState: View {
-    let title: String
-    let message: String
+    /// 三条都是固定文案，必须收 LocalizedStringResource；
+    /// 早先写成 String，英文界面下整块空状态仍是中文。
+    let title: LocalizedStringResource
+    let message: LocalizedStringResource
     var systemImage: String = "shippingbox"
     /// 空状态最怕"只有一句话"，给一个能立刻点的下一步
-    var actionTitle: String?
+    var actionTitle: LocalizedStringResource?
     var action: (() -> Void)?
 
     var body: some View {

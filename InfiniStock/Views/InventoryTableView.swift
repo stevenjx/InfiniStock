@@ -42,10 +42,15 @@ struct StockKpiStrip: View {
         HStack(spacing: Token.Space.m) {
             StatCard(
                 title: statusFilter?.label ?? "全部机器",
-                value: String(localized: "\(pool.count) 台"),
+                value: String(
+                    format: String(localized: "%lld 台"),
+                    Int64(pool.count)
+                ),
                 systemImage: "shippingbox.fill",
                 tone: .brand,
-                delta: unpricedCount > 0 ? String(localized: "\(unpricedCount) 台未标价") : "全部已定价",
+                delta: unpricedCount > 0
+                    ? String(format: String(localized: "%lld 台未标价"), Int64(unpricedCount))
+                    : String(localized: "全部已定价"),
                 deltaTone: unpricedCount > 0 ? .warn : .ok
             )
             StatCard(
@@ -62,15 +67,24 @@ struct StockKpiStrip: View {
                 tone: listed - cost < 0 ? .danger : .ok,
                 delta: listed > 0
                     ? String(localized: "毛利率 \(Money.text(((listed - cost) / listed * 100).rounded(1)))%")
-                    : "还没有标价",
+                    : String(localized: "还没有标价"),
                 deltaTone: listed - cost < 0 ? .danger : .ok
             )
             StatCard(
                 title: "平均库龄",
-                value: String(localized: "\(averageAge) 天"),
+                value: String(
+                    format: String(localized: "%lld 天"),
+                    Int64(averageAge)
+                ),
                 systemImage: "clock",
                 tone: overdue.isEmpty ? .neutral : .danger,
-                delta: overdue.isEmpty ? "无呆滞" : "\(overdue.count) 台超 \(Item.overdueDays) 天",
+                delta: overdue.isEmpty
+                    ? String(localized: "无呆滞")
+                    : String(
+                        format: String(localized: "%lld 台超 %lld 天"),
+                        Int64(overdue.count),
+                        Int64(Item.overdueDays)
+                    ),
                 deltaTone: overdue.isEmpty ? .neutral : .danger
             )
         }
@@ -320,10 +334,12 @@ struct InventoryTableView: View {
         }
     }
 
-    private var footerLeading: String {
+    /// 返回本地化资源而不是 String：TableFooter 内部才做查表，
+    /// 提前用 String(localized:) 会把筛选关键词当参数，格式串无法翻译。
+    private var footerLeading: LocalizedStringResource {
         let keyword = searchText.trimmingCharacters(in: .whitespaces)
         if keyword.isEmpty {
-            return String(localized: "共 \(rows.count) 台")
+            return "共 \(rows.count) 台"
         }
         return "共 \(rows.count) 台 · 筛选「\(keyword)」"
     }

@@ -102,7 +102,7 @@ struct ReportView: View {
                 value: report.averageOrder.mmk,
                 systemImage: "person.crop.circle",
                 tone: .neutral,
-                delta: String(localized: "每台 \(report.averageTicket.mmk)")
+                delta: "每台 \(report.averageTicket.mmk)"
             )
         }
     }
@@ -169,7 +169,9 @@ struct ReportView: View {
     }
 
     private var modelCard: some View {
-        SectionCard(title: report.byModel.isEmpty ? "按型号" : String(localized: "按型号 · \(report.byModel.count) 款")) {
+        SectionCard(title: report.byModel.isEmpty
+                    ? "按型号"
+                    : "按型号 · \(report.byModel.count) 款") {
             if report.byModel.isEmpty {
                 EmptyState(title: "没有成交", message: "卖出机器后这里按毛利排序", systemImage: "laptopcomputer")
                     .frame(height: 120)

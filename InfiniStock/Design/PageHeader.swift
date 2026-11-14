@@ -81,10 +81,11 @@ extension View {
 
 /// 右栏未选中时的占位：保持与详情一致的面板结构，不出现空洞。
 struct DetailPlaceholder: View {
-    let title: String
-    let message: String
+    let title: LocalizedStringResource
+    let message: LocalizedStringResource
     var systemImage: String
-    var subtitle: String = "未选择"
+    /// 副标题多用于状态说明（未选择 / 多选），走本地化
+    var subtitle: String = String(localized: "未选择")
 
     var body: some View {
         VStack(spacing: 0) {

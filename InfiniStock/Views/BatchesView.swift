@@ -74,7 +74,7 @@ struct BatchesView: View {
 
             table
 
-            TableFooter(leading: String(localized: "共 \(filtered.count) 批"), trailing: footerTrailing)
+            TableFooter(leading: "共 \(filtered.count) 批", trailing: footerTrailing)
         }
         .sheet(isPresented: $showingNewBatch) {
             BatchSheet()

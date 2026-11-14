@@ -18,12 +18,13 @@ struct FilterBar<Content: View>: View {
 
 /// 卡片底部的统计条：左侧条数、右侧选中汇总。
 struct TableFooter: View {
-    let leading: String
+    /// 页脚文案带台数等插值，必须保留本地化资源类型
+    let leading: LocalizedStringResource
     var trailing: String?
 
     var body: some View {
         HStack(spacing: Token.Space.s) {
-            Text(leading)
+            Text(String(localized: leading))
                 .foregroundStyle(Token.Ink.secondary)
             Spacer(minLength: Token.Space.s)
             if let trailing, !trailing.isEmpty {
@@ -53,7 +54,8 @@ struct Hairline: View {
 /// 而参考图的搜索是在内容区里、和筛选并排。
 struct SearchField: View {
     @Binding var text: String
-    let prompt: String
+    /// 占位符是固定文案，收本地化资源；TextField(String) 不查词表
+    let prompt: LocalizedStringResource
     /// ⌘F 触发；消费后立刻置回 false
     @Binding var focusRequest: Bool
 
@@ -65,7 +67,7 @@ struct SearchField: View {
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(Token.Ink.tertiary)
 
-            TextField(prompt, text: $text)
+            TextField(text: $text, prompt: Text(prompt)) { EmptyView() }
                 .textFieldStyle(.plain)
                 .font(Token.Typography.body)
                 .focused($focused)
@@ -186,6 +188,7 @@ extension EnvironmentValues {
 /// 详情栏的标题条：与列表工具条同高、同底色，右栏因此不再是一摞悬空卡片。
 struct PanelHeader<Trailing: View>: View {
     let title: LocalizedStringResource
+    /// 副标题是动态值（序列号、单号、批次名），不参与翻译
     var subtitle: String?
     @ViewBuilder var trailing: Trailing
 
@@ -251,7 +254,8 @@ struct PanelFooter<Content: View>: View {
 /// 面板本身是白底，所以用分隔线而不是嵌套卡片来分层，
 /// 否则白卡片叠白面板，边框会显得很碎。
 struct PanelSection<Content: View>: View {
-    let title: String
+    /// 标题多是固定文案，保持本地化资源类型；右侧 trailing 是动态值
+    let title: LocalizedStringResource
     var trailing: String?
     @ViewBuilder var content: Content
 
@@ -280,7 +284,7 @@ struct PanelSection<Content: View>: View {
 }
 
 extension PanelSection where Content == EmptyView {
-    init(title: String, trailing: String? = nil) {
+    init(title: LocalizedStringResource, trailing: String? = nil) {
         self.init(title: title, trailing: trailing) { EmptyView() }
     }
 }

@@ -35,7 +35,7 @@ struct OrdersKpiStrip: View {
                 value: revenue.mmk,
                 systemImage: "cart.fill",
                 tone: .brand,
-                delta: String(localized: "\(todayOrders.count) 张单")
+                delta: "\(todayOrders.count) 张单"
             )
             StatCard(
                 title: "今日毛利",
@@ -47,7 +47,7 @@ struct OrdersKpiStrip: View {
             )
             StatCard(
                 title: "今日已售",
-                value: String(localized: "\(soldCount) 台"),
+                value: "\(soldCount) 台",
                 systemImage: "shippingbox.fill",
                 tone: .neutral,
                 delta: String(localized: "在库 \(items.filter { $0.status == .inStock }.count) 台")
@@ -178,8 +178,8 @@ struct OrdersView: View {
         OrderStatusFilter.allCases.map { PillOption(value: $0, title: $0.title) }
     }
 
-    private var footerLeading: String {
-        String(localized: "共 \(filtered.count) 张")
+    private var footerLeading: LocalizedStringResource {
+        "共 \(filtered.count) 张"
     }
 
     private var footerTrailing: String? {

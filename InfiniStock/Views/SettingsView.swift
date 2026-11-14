@@ -348,11 +348,13 @@ struct SettingsView: View {
         }
     }
 
-    private func ruleRow(_ label: String, _ value: String) -> some View {
-        LabeledContent(label) {
+    private func ruleRow(_ label: LocalizedStringResource, _ value: String) -> some View {
+        LabeledContent {
             Text(value)
                 .font(Token.Typography.money)
                 .foregroundStyle(Token.Ink.secondary)
+        } label: {
+            Text(label)
         }
     }
 
@@ -542,11 +544,15 @@ struct SettingsView: View {
         }
     }
 
-    private func shortcut(_ title: String, _ keys: String) -> some View {
-        LabeledContent(title) {
+    /// 标题走本地化：LabeledContent(_ title: String) 用的是 String 重载，
+    /// 传 LocalizedStringResource 才会查词表。
+    private func shortcut(_ title: LocalizedStringResource, _ keys: String) -> some View {
+        LabeledContent {
             Text(keys)
                 .font(Token.Typography.money)
                 .foregroundStyle(Token.Ink.secondary)
+        } label: {
+            Text(title)
         }
     }
 

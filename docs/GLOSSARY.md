@@ -143,3 +143,13 @@ String 的地方（存储、日志、导出、比较）才 `String(localized:)` 
 - 组件：`PageHeader`、`PanelHeader`、`SidebarRow`、`Badge`、`StatCard`、`FilterPill`、
   `KeyValueRow`、`MetricCell` 的文案参数改为 `LocalizedStringResource`
 - 动态值（金额、日期、客户姓名、序列号）保留 `String` 重载，避免把用户数据当翻译键
+
+## 已知限制：菜单栏不会跟随运行时切换
+
+菜单栏（文件 / 编辑 / 显示 下的「入库…」「搜索…」「库存管理」等）由 SwiftUI 的
+`.commands {}` 构建，这棵树在 Scene 建立时即固定，`AppleLanguages` 只在进程启动时
+读取一次。因此在 App 内切换语言时，**窗口内容会立刻变，菜单栏要重启 App 才变**。
+
+这是框架行为，不是漏翻：`Button("入库…")` 的参数本来就是 `LocalizedStringKey`，
+词表里也有对应英文。要让菜单也即时切换，只能改成自绘菜单栏（放弃系统菜单的
+快捷键、状态栏图标等系统行为），代价大于收益。

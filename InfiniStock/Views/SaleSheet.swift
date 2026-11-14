@@ -134,7 +134,7 @@ struct SaleSheet: View {
                 VStack(spacing: Token.Space.m) {
                     if profit < 0 && !hasInvalidPrice {
                         AlertCard(
-                            title: String(localized: "这笔会亏 \((-profit).mmk)"),
+                            title: "这笔会亏 \((-profit).mmk)",
                             message: "实收低于这 \(items.count) 台的总进价 \(landedTotal.mmk)，确认前请复核成交价与折扣。",
                             tone: .danger
                         )
@@ -199,7 +199,7 @@ struct SaleSheet: View {
     }
 
     private var machinesCard: some View {
-        SectionCard(title: items.count == 1 ? "机器" : String(localized: "待出库 \(items.count) 台")) {
+        SectionCard(title: items.count == 1 ? "机器" : "待出库 \(items.count) 台") {
             VStack(spacing: 0) {
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                     if index > 0 { Hairline() }

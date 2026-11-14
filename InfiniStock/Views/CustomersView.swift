@@ -29,7 +29,7 @@ struct CustomersKpiStrip: View {
         HStack(spacing: Token.Space.m) {
             StatCard(
                 title: "客户数",
-                value: String(localized: "\(customers.count) 位"),
+                value: "\(customers.count) 位",
                 systemImage: "person.2.fill",
                 tone: .brand,
                 delta: repeatRate
@@ -39,7 +39,7 @@ struct CustomersKpiStrip: View {
                 value: revenue.mmk,
                 systemImage: "creditcard.fill",
                 tone: .ok,
-                delta: String(localized: "\(customers.reduce(0) { $0 + $1.machineCount }) 台")
+                delta: "\(customers.reduce(0) { $0 + $1.machineCount }) 台"
             )
             StatCard(
                 title: "平均客单价",
@@ -84,7 +84,7 @@ struct CustomersView: View {
 
             table
 
-            TableFooter(leading: String(localized: "共 \(customers.count) 位"), trailing: footerTrailing)
+            TableFooter(leading: "共 \(customers.count) 位", trailing: footerTrailing)
         }
     }
 

@@ -228,7 +228,7 @@ struct TodosView: View {
         } else {
             EmptyState(
                 title: "今天没有待办",
-                message: String(localized: "在库机器都已定价、电池正常、库龄在 \(Item.overdueDays) 天以内，批次运费摊完了，也没有快到期的保修"),
+                message: "在库机器都已定价、电池正常、库龄在 \(Item.overdueDays) 天以内，批次运费摊完了，也没有快到期的保修",
                 systemImage: "checkmark.seal"
             )
         }
@@ -260,13 +260,14 @@ struct TodosView: View {
         }
     }
 
-    private func footerLeading(_ rows: [TodoEntry]) -> String {
+    private func footerLeading(_ rows: [TodoEntry]) -> LocalizedStringResource {
         guard !rows.isEmpty else { return "共 0 项" }
         return "共 \(rows.count) 项 · 涉及 \(TodoCenter.involvedCount(rows)) 台"
     }
 
     private func footerTrailing(_ rows: [TodoEntry]) -> String? {
         guard let selection, let entry = rows.first(where: { $0.id == selection }) else { return nil }
-        return "\(entry.kind.title) · \(entry.title)"
+        // trailing 是动态拼接（枚举标题 + 机器名），先取当前语言再拼
+        return "\(String(localized: entry.kind.title)) · \(entry.title)"
     }
 }
