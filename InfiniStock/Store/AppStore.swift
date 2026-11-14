@@ -19,6 +19,23 @@ enum AppStore {
     static func make() -> AppStoreBundle {
         let schema = Schema([Item.self, Order.self, Batch.self])
 
+        #if DEBUG
+        // 验收用的样例数据落在单独的库文件里。
+        // 指到真实库上，一次 seed 就等于把店里现有的账删掉——这条隔离必须硬编码在这里，
+        // 不能靠"记得先备份"这种口头约定。
+        // 用法：在 Application Support 里放一个 use-debug-store 文件（不会被自动删除），
+        // 期间所有读写都走 debug.store；删掉它即回到真实库。
+        if let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first,
+           FileManager.default.fileExists(atPath: support.appendingPathComponent("use-debug-store").path) {
+            let url = support.appendingPathComponent("debug.store")
+            let config = ModelConfiguration(schema: schema, url: url, cloudKitDatabase: .none)
+            guard let container = try? ModelContainer(for: schema, configurations: [config]) else {
+                fatalError("调试库初始化失败：\(url.path)")
+            }
+            return AppStoreBundle(container: container, cloudSyncEnabled: false)
+        }
+        #endif
+
         #if CLOUD_SYNC
         let cloudConfiguration = ModelConfiguration(schema: schema, cloudKitDatabase: .automatic)
         if let container = try? ModelContainer(for: schema, configurations: [cloudConfiguration]) {
