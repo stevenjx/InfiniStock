@@ -6,6 +6,7 @@ import SwiftData
 enum TodoKind: String, CaseIterable, Identifiable {
     case pendingAllocation
     case outstanding
+    case warrantyExpiring
     case unpriced
     case negativeMargin
     case currencyRisk
@@ -19,6 +20,7 @@ enum TodoKind: String, CaseIterable, Identifiable {
         switch self {
         case .pendingAllocation: "待分摊"
         case .outstanding: "应收未收"
+        case .warrantyExpiring: "保修将到期"
         case .unpriced: "未标价"
         case .negativeMargin: "低于成本"
         case .currencyRisk: "汇率亏损"
@@ -32,6 +34,7 @@ enum TodoKind: String, CaseIterable, Identifiable {
         switch self {
         case .pendingAllocation: "分摊运费"
         case .outstanding: "催收"
+        case .warrantyExpiring: "备售后"
         case .unpriced: "定标价"
         case .negativeMargin: "调价"
         case .currencyRisk: "调价或换汇"
@@ -68,11 +71,16 @@ struct TodoEntry: Identifiable {
 ///
 /// 只收在库机器：已售的机器再怎么提醒也没法动手，那是售后的事。
 enum TodoCenter {
+    /// 保修到期前几天开始提醒。太早会天天看见，太晚来不及准备
+    static let warrantyWarningDays = 3
+
     static func build(
         items: [Item],
         batches: [Batch] = [],
         orders: [Order] = [],
-        currentRate: Decimal = 0
+        currentRate: Decimal = 0,
+        now: Date = .now,
+        warrantyDays: Int = 0
     ) -> [TodoEntry] {
         var entries: [TodoEntry] = []
         let inStock = items.filter { $0.status == .inStock }
@@ -153,6 +161,35 @@ enum TodoCenter {
             ))
         }
 
+        // 保修快到期：机器已经卖出去，售后义务还在，但没有任何地方会提醒。
+        // 只在到期前 3 天内出现，过保就不再打扰——事情已经过去了。
+        if warrantyDays > 0 {
+            let today = Calendar.current.startOfDay(for: now)
+            for item in items where item.status == .sold {
+                guard let soldAt = item.soldAt,
+                      let expiry = Calendar.current.date(byAdding: .day, value: warrantyDays, to: soldAt)
+                else { continue }
+                let remaining = Calendar.current.dateComponents(
+                    [.day], from: today, to: Calendar.current.startOfDay(for: expiry)
+                ).day ?? 0
+                guard remaining >= 0, remaining <= warrantyWarningDays else { continue }
+
+                entries.append(TodoEntry(
+                    id: TodoEntry.Key(kind: .warrantyExpiring, target: item.persistentModelID),
+                    kind: .warrantyExpiring,
+                    title: item.modelName,
+                    subtitle: item.serialNumber,
+                    reason: remaining == 0
+                        ? "保修今天到期，客户随时可能回来"
+                        : "保修还剩 \(remaining) 天，\(dayText(expiry)) 到期",
+                    amount: 0,
+                    item: item,
+                    batch: nil,
+                    order: item.order
+                ))
+            }
+        }
+
         let rank = Dictionary(
             uniqueKeysWithValues: TodoKind.allCases.enumerated().map { ($1, $0) }
         )
@@ -182,10 +219,11 @@ enum TodoCenter {
 
     /// 涉及金额合计。同一台机器可能同时有多条待办，按机器去重，
     /// 否则"占用资金"会被同一台机器重复计入两次。
+    /// 保修待办指向的是已售机器，它的进价早已不是占用资金，不能算进来。
     static func involvedCost(_ entries: [TodoEntry]) -> Decimal {
         var seen = Set<PersistentIdentifier>()
         var total = Decimal(0)
-        for entry in entries {
+        for entry in entries where entry.kind != .warrantyExpiring {
             guard let item = entry.item, !seen.contains(item.persistentModelID) else { continue }
             seen.insert(item.persistentModelID)
             total += item.landedCost
@@ -194,7 +232,22 @@ enum TodoCenter {
     }
 
     static func involvedCount(_ entries: [TodoEntry]) -> Int {
-        Set(entries.compactMap { $0.item?.persistentModelID }).count
+        Set(
+            entries
+                .filter { $0.kind != .warrantyExpiring }
+                .compactMap { $0.item?.persistentModelID }
+        ).count
+    }
+
+    private static let dayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M月d日"
+        return formatter
+    }()
+
+    private static func dayText(_ date: Date) -> String {
+        dayFormatter.string(from: date)
     }
 
     static func count(_ entries: [TodoEntry], of kind: TodoKind) -> Int {

@@ -13,9 +13,12 @@ struct SidebarView: View {
     @Query private var orders: [Order]
 
     /// 侧栏只报条数，不报明细——明细在待办页里
-    private var todoCount: Int {
-        TodoCenter.build(items: items, batches: batches, orders: orders,
-                         currentRate: ShopSettings.load().defaultExchangeRate).count
+    private func todoCount(_ settings: ShopSettings) -> Int {
+        TodoCenter.build(
+            items: items, batches: batches, orders: orders,
+            currentRate: settings.defaultExchangeRate,
+            warrantyDays: settings.warrantyDays
+        ).count
     }
 
     private var inStockCount: Int {
@@ -23,13 +26,18 @@ struct SidebarView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
+        // 设置读一次。原来店名、备份状态、待办计数各调一次 ShopSettings.load()，
+        // 每次都是一遍 JSON 解码；计数那句还在三元里调了两遍，等于白建一张待办表。
+        let settings = ShopSettings.load()
+        let todos = todoCount(settings)
+
+        return VStack(spacing: 0) {
             header
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     group("日常") {
-                        row(.todos, badge: todoCount > 0 ? todoCount : nil)
+                        row(.todos, badge: todos > 0 ? todos : nil)
                         row(.stock(nil), badge: inStockCount > 0 ? inStockCount : nil)
                     }
                     group("交易") {
@@ -45,7 +53,7 @@ struct SidebarView: View {
                 .padding(.bottom, Token.Space.m)
             }
 
-            footer
+            footer(settings)
         }
         // 侧栏用比画布略冷一档的底色，和右侧白卡片形成层次；
         // 纯白侧栏贴在白卡片上时分不出边界。
@@ -82,8 +90,11 @@ struct SidebarView: View {
         .padding(.bottom, Token.Space.m)
     }
 
-    private var footer: some View {
-        VStack(spacing: 0) {
+    private func footer(_ settings: ShopSettings) -> some View {
+        let status = backupStatus(settings)
+        let shopName = shopDisplayName(settings)
+
+        return VStack(spacing: 0) {
             Hairline()
             Button(action: onSettings) {
                 HStack(spacing: 7) {
@@ -110,9 +121,9 @@ struct SidebarView: View {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 5) {
                     Circle()
-                        .fill(backupStatus.tone)
+                        .fill(status.tone)
                         .frame(width: 5, height: 5)
-                    Text(backupStatus.text)
+                    Text(status.text)
                         .font(.system(size: 10))
                         .foregroundStyle(Token.Ink.tertiary)
                     Spacer(minLength: 0)
@@ -128,12 +139,12 @@ struct SidebarView: View {
         }
     }
 
-    private var shopName: String {
-        ShopSettings.load().shopName.trimmingCharacters(in: .whitespaces)
+    private func shopDisplayName(_ settings: ShopSettings) -> String {
+        settings.shopName.trimmingCharacters(in: .whitespaces)
     }
 
-    private var backupStatus: (text: String, tone: Color) {
-        if !ShopSettings.load().autoBackupEnabled {
+    private func backupStatus(_ settings: ShopSettings) -> (text: String, tone: Color) {
+        if !settings.autoBackupEnabled {
             return ("自动备份已关闭", Token.Status.warn)
         }
         if BackupService.backupFolder() == nil {

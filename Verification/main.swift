@@ -1111,6 +1111,48 @@ struct Verify {
         check("周转-无成交时不给可售天数", noSales.daysOfSupply == nil)
         check("周转-无成交型号标记为卖不动", noSales.velocity.first?.daysOfSupply == nil)
 
+        // MARK: P12 保修到期
+
+        let warSchema = Schema([Item.self, Order.self, Batch.self])
+        let warConfig = ModelConfiguration(schema: warSchema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let warContainer = try ModelContainer(for: warSchema, configurations: [warConfig])
+        let war = warContainer.mainContext
+
+        @discardableResult
+        func warItem(_ serial: String, soldDaysAgo: Int?) -> Item {
+            let item = Item(serialNumber: serial, modelName: "Warranty", costCNY: 1000,
+                            exchangeRate: 1, shipping: 0, listPrice: 2000)
+            item.inboundAt = daysAgo(60)
+            if let soldDaysAgo {
+                item.status = .sold
+                item.soldAt = daysAgo(soldDaysAgo)
+                item.soldPrice = 2000
+            }
+            war.insert(item)
+            return item
+        }
+
+        // 7 天保修：剩 2 天该提醒，剩 3 天是边界，剩 4 天不打扰，过保不打扰
+        let w1 = warItem("W1", soldDaysAgo: 5)
+        let w2 = warItem("W2", soldDaysAgo: 10)
+        let w3 = warItem("W3", soldDaysAgo: nil)
+        let w4 = warItem("W4", soldDaysAgo: 4)
+        let w5 = warItem("W5", soldDaysAgo: 3)
+
+        let warEntries = TodoCenter.build(items: [w1, w2, w3, w4, w5], warrantyDays: 7)
+        let warHits = warEntries.filter { $0.kind == .warrantyExpiring }
+        check("保修-剩 2 天进待办", warHits.contains { $0.subtitle == "W1" })
+        check("保修-剩 3 天仍提醒（边界）", warHits.contains { $0.subtitle == "W4" })
+        check("保修-剩 4 天不打扰", !warHits.contains { $0.subtitle == "W5" })
+        check("保修-已过保不提醒", !warHits.contains { $0.subtitle == "W2" })
+        check("保修-在库机器不提醒", !warHits.contains { $0.subtitle == "W3" })
+        check("保修-关闭保修后不产生该待办",
+              TodoCenter.build(items: [w1], warrantyDays: 0).isEmpty)
+        check("保修-不占用待办成本", TodoCenter.involvedCost(warHits) == 0,
+              "\(TodoCenter.involvedCost(warHits))")
+        check("保修-不计入涉及台数", TodoCenter.involvedCount(warHits) == 0,
+              "\(TodoCenter.involvedCount(warHits))")
+
 
         // MARK: U5 客户聚合
 
