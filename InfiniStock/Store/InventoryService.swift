@@ -34,7 +34,11 @@ enum InventoryError: LocalizedError {
 /// 入库表单的原始输入，数字保持字符串以便逐字段报错。
 struct IntakeDraft {
     var serialNumber = ""
-    var modelName = ""
+    /// 选中的标准机型。型号是所有统计的分组键，所以不从自由文本收。
+    var model: MacModel?
+    /// 由 model 派生，保证写进库的一定是标准写法。
+    /// 不叫 modelName：那会和 Item.modelName 在调用处混看，容易误写。
+    var resolvedModelName: String { model?.displayName ?? "" }
     var chip = ""
     var memory = ""
     var storage = ""
@@ -80,7 +84,7 @@ enum InventoryService {
     static func intake(_ draft: IntakeDraft, batch: Batch? = nil, in context: ModelContext) throws -> Item {
         let serial = normalize(draft.serialNumber)
         guard !serial.isEmpty else { throw InventoryError.emptySerial }
-        guard !normalize(draft.modelName).isEmpty else { throw InventoryError.emptyModel }
+        guard !normalize(draft.resolvedModelName).isEmpty else { throw InventoryError.emptyModel }
         guard !serialExists(serial, in: context) else { throw InventoryError.duplicateSerial(serial) }
 
         let cost = try amount(draft.costCNY, field: "进价", fallback: 0)
@@ -94,7 +98,7 @@ enum InventoryService {
 
         let item = Item(
             serialNumber: serial,
-            modelName: draft.modelName.trimmingCharacters(in: .whitespacesAndNewlines),
+            modelName: draft.resolvedModelName,
             chip: draft.chip,
             memory: draft.memory,
             storage: draft.storage,

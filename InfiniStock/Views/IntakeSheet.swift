@@ -20,22 +20,22 @@ struct IntakeSheet: View {
                 Section("机器") {
                     TextField("序列号", text: $draft.serialNumber)
                         .monospaced()
-                    HStack(spacing: Token.Space.s) {
-                        TextField("型号（如 MacBook Air M2 13\"）", text: $draft.modelName)
-                        Menu("常用") {
-                            ForEach(MacCatalog.presets) { preset in
-                                Button(preset.label) {
-                                    draft.modelName = preset.modelName
-                                    draft.chip = preset.chip
-                                    draft.memory = preset.memory
-                                    draft.storage = preset.storage
-                                }
-                            }
+                    // 型号必须从目录里选：它是所有统计的分组键，
+                    // 手打一个字差异就会变成两款机器，售速与毛利同时失真。
+                    Picker("型号", selection: $draft.model) {
+                        Text("请选择").tag(MacModel?.none)
+                        Divider()
+                        ForEach(MacModel.catalog) { model in
+                            Text(model.displayName).tag(Optional(model))
                         }
-                        .menuStyle(.borderlessButton)
-                        .fixedSize()
                     }
-                    TextField("芯片（可选）", text: $draft.chip)
+                    if let model = draft.model, model.chip.isEmpty {
+                        Text("这款没带芯片信息，请在下方补一个")
+                            .font(Token.Typography.caption)
+                            .foregroundStyle(Token.Status.warn)
+                    }
+                    TextField("芯片", text: $draft.chip)
+                        .disabled(draft.model != nil && !(draft.model?.chip.isEmpty ?? true))
                     TextField("内存（可选）", text: $draft.memory)
                     TextField("存储（可选）", text: $draft.storage)
                     TextField("颜色（可选）", text: $draft.color)

@@ -71,7 +71,7 @@ struct ViewPreview {
 
     @MainActor
     static func makeContainer() throws -> ModelContainer {
-        let schema = Schema([Item.self, Order.self, Batch.self])
+        let schema = Schema([Item.self, Order.self, Batch.self, PriceChange.self])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: schema, configurations: [config])
         let context = container.mainContext

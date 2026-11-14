@@ -19,7 +19,7 @@ struct Verify {
             }
         }
 
-        let schema = Schema([Item.self, Order.self, Batch.self])
+        let schema = Schema([Item.self, Order.self, Batch.self, PriceChange.self])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: schema, configurations: [config])
         let context = container.mainContext
@@ -28,7 +28,7 @@ struct Verify {
 
         var draft = IntakeDraft()
         draft.serialNumber = "  c02abc123  "
-        draft.modelName = "MacBook Air M2 13\""
+        draft.model = MacModel.parse("MacBook Air M2 13\"")
         draft.storage = "256GB"
         draft.costCNY = "1000"
         draft.exchangeRate = "420"
@@ -118,7 +118,7 @@ struct Verify {
         for index in 1...3 {
             var d = IntakeDraft()
             d.serialNumber = "CNT00\(index)"
-            d.modelName = "MacBook Air M2"
+            d.model = MacModel.parse("MacBook Air M2")
             d.costCNY = "100"
             d.exchangeRate = "420"
             _ = try InventoryService.intake(d, batch: countBatch, in: context)
@@ -143,7 +143,7 @@ struct Verify {
         for (index, cost) in [100, 200, 300].enumerated() {
             var d = IntakeDraft()
             d.serialNumber = "VAL00\(index)"
-            d.modelName = "MacBook Air M1"
+            d.model = MacModel.parse("MacBook Air M1")
             d.costCNY = "\(cost)"
             d.exchangeRate = "400"
             _ = try InventoryService.intake(d, batch: valueBatch, in: context)
@@ -163,7 +163,7 @@ struct Verify {
 
         // MARK: 统计口径
 
-        let statsSchema = Schema([Item.self, Order.self, Batch.self])
+        let statsSchema = Schema([Item.self, Order.self, Batch.self, PriceChange.self])
         let statsConfig = ModelConfiguration(schema: statsSchema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let statsContainer = try ModelContainer(for: statsSchema, configurations: [statsConfig])
         let statsContext = statsContainer.mainContext
@@ -212,7 +212,7 @@ struct Verify {
 
         var bad = IntakeDraft()
         bad.serialNumber = "BADSERIAL"
-        bad.modelName = "MacBook Air M2"
+        bad.model = MacModel.parse("MacBook Air M2")
         bad.costCNY = "abc"
         do {
             _ = try InventoryService.intake(bad, in: context)
@@ -234,7 +234,7 @@ struct Verify {
 
         var noRate = IntakeDraft()
         noRate.serialNumber = "NORATE01"
-        noRate.modelName = "MacBook Air M2"
+        noRate.model = MacModel.parse("MacBook Air M2")
         noRate.costCNY = "100"
         do {
             _ = try InventoryService.intake(noRate, in: context)
@@ -260,7 +260,7 @@ struct Verify {
 
         var stageDraft = IntakeDraft()
         stageDraft.serialNumber = "STG001"
-        stageDraft.modelName = "MacBook Air M2"
+        stageDraft.model = MacModel.parse("MacBook Air M2")
         stageDraft.costCNY = "100"
         stageDraft.exchangeRate = "400"
         _ = try InventoryService.intake(stageDraft, batch: stageBatch, in: context)
@@ -272,7 +272,8 @@ struct Verify {
         let customerList = CustomerSummary.build(from: try context.fetch(FetchDescriptor<Order>()))
         let zhang = customerList.first { $0.name == "张三" }
         check("单次购买 = 潜力客户", zhang?.tier == .potential, zhang?.tier.rawValue ?? "nil")
-        check("客户最近购买型号", zhang?.lastModel == "MacBook Air M2 13\"", zhang?.lastModel ?? "nil")
+        // 型号已规范化：入库时写的是自由文本，落库时统一成「系列 尺寸 芯片」
+        check("客户最近购买型号", zhang?.lastModel == "MacBook Air 13\" M2", zhang?.lastModel ?? "nil")
 
         // MARK: 金额大写
 
@@ -334,7 +335,7 @@ struct Verify {
 
         var voidDraft = IntakeDraft()
         voidDraft.serialNumber = "VOID001"
-        voidDraft.modelName = "MacBook Pro 14\" M3 Pro"
+        voidDraft.model = MacModel.parse("MacBook Pro 14\" M3 Pro")
         voidDraft.costCNY = "5000"
         voidDraft.exchangeRate = "1"
         voidDraft.listPrice = "6999"
@@ -371,7 +372,7 @@ struct Verify {
 
         // MARK: 备份导出与恢复
 
-        let backupSchema = Schema([Item.self, Order.self, Batch.self])
+        let backupSchema = Schema([Item.self, Order.self, Batch.self, PriceChange.self])
         let backupConfig = ModelConfiguration(schema: backupSchema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let sourceContainer = try ModelContainer(for: backupSchema, configurations: [backupConfig])
         let source = sourceContainer.mainContext
@@ -387,7 +388,7 @@ struct Verify {
         for (index, cost) in ["1234.56", "987.65", "0.01"].enumerated() {
             var d = IntakeDraft()
             d.serialNumber = "BKP00\(index)"
-            d.modelName = "MacBook Air M2"
+            d.model = MacModel.parse("MacBook Air M2")
             d.memory = "8GB"
             d.storage = "256GB"
             d.color = "深空黑"
@@ -513,7 +514,7 @@ struct Verify {
 
         // MARK: P1 单号与折扣
 
-        let p1Schema = Schema([Item.self, Order.self, Batch.self])
+        let p1Schema = Schema([Item.self, Order.self, Batch.self, PriceChange.self])
         let p1Config = ModelConfiguration(schema: p1Schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let p1Container = try ModelContainer(for: p1Schema, configurations: [p1Config])
         let p1 = p1Container.mainContext
@@ -682,7 +683,7 @@ struct Verify {
 
         // MARK: P3 CSV 导入
 
-        let csvSchema = Schema([Item.self, Order.self, Batch.self])
+        let csvSchema = Schema([Item.self, Order.self, Batch.self, PriceChange.self])
         let csvConfig = ModelConfiguration(schema: csvSchema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let csvContainer = try ModelContainer(for: csvSchema, configurations: [csvConfig])
         let csvContext = csvContainer.mainContext
@@ -785,7 +786,7 @@ struct Verify {
 
         // MARK: P2 部分退货
 
-        let p2Schema = Schema([Item.self, Order.self, Batch.self])
+        let p2Schema = Schema([Item.self, Order.self, Batch.self, PriceChange.self])
         let p2Config = ModelConfiguration(schema: p2Schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let p2Container = try ModelContainer(for: p2Schema, configurations: [p2Config])
         let p2 = p2Container.mainContext
@@ -907,7 +908,7 @@ struct Verify {
 
         // MARK: P4 删除误录入与打印参数
 
-        let dSchema = Schema([Item.self, Order.self, Batch.self])
+        let dSchema = Schema([Item.self, Order.self, Batch.self, PriceChange.self])
         let dConfig = ModelConfiguration(schema: dSchema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let dContainer = try ModelContainer(for: dSchema, configurations: [dConfig])
         let d = dContainer.mainContext
@@ -986,7 +987,7 @@ struct Verify {
 
         // MARK: U4 仪表盘口径
 
-        let dashSchema = Schema([Item.self, Order.self, Batch.self])
+        let dashSchema = Schema([Item.self, Order.self, Batch.self, PriceChange.self])
         let dashConfig = ModelConfiguration(schema: dashSchema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let dashContainer = try ModelContainer(for: dashSchema, configurations: [dashConfig])
         let dash = dashContainer.mainContext
@@ -1048,7 +1049,7 @@ struct Verify {
 
         // MARK: P3 库存周转
 
-        let velSchema = Schema([Item.self, Order.self, Batch.self])
+        let velSchema = Schema([Item.self, Order.self, Batch.self, PriceChange.self])
         let velConfig = ModelConfiguration(schema: velSchema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let velContainer = try ModelContainer(for: velSchema, configurations: [velConfig])
         let vel = velContainer.mainContext
@@ -1113,7 +1114,7 @@ struct Verify {
 
         // MARK: P12 保修到期
 
-        let warSchema = Schema([Item.self, Order.self, Batch.self])
+        let warSchema = Schema([Item.self, Order.self, Batch.self, PriceChange.self])
         let warConfig = ModelConfiguration(schema: warSchema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let warContainer = try ModelContainer(for: warSchema, configurations: [warConfig])
         let war = warContainer.mainContext
@@ -1182,7 +1183,7 @@ struct Verify {
 
         // MARK: U5 客户聚合
 
-        let cusSchema = Schema([Item.self, Order.self, Batch.self])
+        let cusSchema = Schema([Item.self, Order.self, Batch.self, PriceChange.self])
         let cusConfig = ModelConfiguration(schema: cusSchema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let cusContainer = try ModelContainer(for: cusSchema, configurations: [cusConfig])
         let cus = cusContainer.mainContext
@@ -1234,7 +1235,7 @@ struct Verify {
 
         // MARK: 待办中心
 
-        let todoSchema = Schema([Item.self, Order.self, Batch.self])
+        let todoSchema = Schema([Item.self, Order.self, Batch.self, PriceChange.self])
         let todoConfig = ModelConfiguration(schema: todoSchema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let todoContainer = try ModelContainer(for: todoSchema, configurations: [todoConfig])
         let todoCtx = todoContainer.mainContext
@@ -1270,7 +1271,7 @@ struct Verify {
         todoCtx.insert(pendingBatch)
         var pendingDraft = IntakeDraft()
         pendingDraft.serialNumber = "T-BATCH1"
-        pendingDraft.modelName = "MacBook Pro 14"
+        pendingDraft.model = MacModel.parse("MacBook Pro 14")
         pendingDraft.costCNY = "1000"
         pendingDraft.exchangeRate = "400"
         pendingDraft.listPrice = "600000"
@@ -1284,7 +1285,7 @@ struct Verify {
         todoCtx.insert(settledBatch)
         var settledDraft = IntakeDraft()
         settledDraft.serialNumber = "T-BATCH2"
-        settledDraft.modelName = "MacBook Pro 14"
+        settledDraft.model = MacModel.parse("MacBook Pro 14")
         settledDraft.costCNY = "1000"
         settledDraft.exchangeRate = "400"
         settledDraft.listPrice = "600000"
@@ -1422,7 +1423,7 @@ struct Verify {
 
         // 备份要保住实收，否则恢复后欠款凭空消失
         let creditSnapshot = try BackupService.makeSnapshot(from: todoCtx)
-        check("备份-格式版本 5", creditSnapshot.formatVersion == 5, "\(creditSnapshot.formatVersion)")
+        check("备份-格式版本 6", creditSnapshot.formatVersion == 6, "\(creditSnapshot.formatVersion)")
         let creditDecoded = try BackupService.decode(try BackupService.jsonData(creditSnapshot))
         let owingDTO = creditDecoded.orders.first { $0.number == owingOrder.number }
         check("备份-保留实收", owingDTO?.paidAmount == "1000",
@@ -1589,6 +1590,90 @@ struct Verify {
         // 保留份数夹在 1…200：填 0 时不能把刚写好的备份一起删掉
         check("备份-保留份数下限保护", min(max(0, 1), 200) == 1)
         check("备份-保留份数上限保护", min(max(5000, 1), 200) == 200)
+
+
+        // MARK: 改价留痕
+        let auditSchema = Schema([Item.self, Order.self, Batch.self, PriceChange.self])
+        let auditConfig = ModelConfiguration(schema: auditSchema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let auditContainer = try ModelContainer(for: auditSchema, configurations: [auditConfig])
+        let audit = auditContainer.mainContext
+
+        let audited = Item(serialNumber: "AUDIT1", modelName: "MacBook Air 13\" M2",
+                           costCNY: 3000, exchangeRate: 400, shipping: 0, listPrice: 2_000_000)
+        audit.insert(audited)
+
+        let first = PriceAudit.record(item: audited, oldPrice: 2_000_000, newPrice: 1_800_000,
+                                      source: .edit, in: audit)
+        check("改价-记录一条", first != nil)
+        check("改价-降幅为负", first?.delta == -200_000, "\(String(describing: first?.delta))")
+        check("改价-毛利率按新价算",
+              first?.marginAfter == Decimal(string: "33.3"),
+              "\(String(describing: first?.marginAfter))")
+        check("改价-记下变动时的进价", first?.landedCostAtChange == 1_200_000,
+              "\(String(describing: first?.landedCostAtChange))")
+
+        // 价格没变就不该留痕：点开弹窗什么都没改也保存，账本上不该多一条
+        let noChange = PriceAudit.record(item: audited, oldPrice: 1_800_000, newPrice: 1_800_000,
+                                         source: .edit, in: audit)
+        check("改价-未变价不留记录", noChange == nil)
+
+        audited.listPrice = 1_800_000
+        _ = PriceAudit.record(item: audited, oldPrice: 1_800_000, newPrice: 1_950_000,
+                             source: .advice, in: audit, now: daysAgo(-1))
+        try audit.save()
+        check("改价-历史按时间倒序", PriceAudit.history(for: audited).count == 2,
+              "\(PriceAudit.history(for: audited).count)")
+        check("改价-最新一条排在最前", PriceAudit.history(for: audited).first?.newPrice == 1_950_000,
+              "\(String(describing: PriceAudit.history(for: audited).first?.newPrice))")
+        check("改价-来源区分手动与建议", PriceAudit.history(for: audited).first?.source == .advice)
+
+        // 进价为 0 时毛利率算不出来，必须是 nil 而不是 0
+        let noCost = Item(serialNumber: "AUDIT2", modelName: "MacBook Air 13\" M2",
+                          costCNY: 0, exchangeRate: 1, shipping: 0, listPrice: 1000)
+        audit.insert(noCost)
+        let zeroCostChange = PriceAudit.record(item: noCost, oldPrice: 0, newPrice: 1000,
+                                              source: .edit, in: audit)
+        check("改价-无进价时不给毛利率", zeroCostChange?.marginAfter == nil,
+              "\(String(describing: zeroCostChange?.marginAfter))")
+
+        // 备份要把改价链带走，否则换机后对账断了
+        try audit.save()
+        let auditedSnapshot = try BackupService.makeSnapshot(from: audit)
+        check("改价-备份带上改价记录",
+              (auditedSnapshot.priceChanges ?? []).contains { $0.itemSerial == "AUDIT1" },
+              "\(auditedSnapshot.priceChanges?.count ?? 0)")
+        check("改价-备份版本升到 6", auditedSnapshot.formatVersion == 6, "\(auditedSnapshot.formatVersion)")
+
+        // MARK: 机型解析与归一
+        let modelCases: [(input: String, expected: String?)] = [
+            ("MacBook Air M2 13\"", "MacBook Air 13\" M2"),
+            ("macbook air m2 13\"", "MacBook Air 13\" M2"),
+            ("MacBook Air 15\" M3", "MacBook Air 15\" M3"),
+            ("MacBook Air M2 15\"", "MacBook Air 15\" M2"),
+            ("MBA M1 13", "MacBook Air 13\" M1"),
+            ("MacBook Pro 14\" M3 Pro", "MacBook Pro 14\" M3 Pro"),
+            ("MBP M3 Pro 14", "MacBook Pro 14\" M3 Pro"),
+            ("MacBook Pro 16\" M1 Max", "MacBook Pro 16\" M1 Max"),
+            ("MacBook Pro 13\" M2", "MacBook Pro 13\" M2"),
+            ("MacBook Air 13.3 M2", "MacBook Air 13\" M2"),
+            ("MacBook", nil),
+            ("iPhone 15 Pro", nil),
+            ("", nil),
+        ]
+        for target in modelCases {
+            let parsed = MacModel.parse(target.input)?.displayName
+            check("机型-解析「\(target.input)」", parsed == target.expected, "\(String(describing: parsed))")
+        }
+        check("机型-同一款不同写法归一到同一键",
+              MacModel.parse("MacBook Air M2 13\"")?.key == MacModel.parse("mba m2 13")?.key)
+        check("机型-Air 与 Pro 不会混为一谈",
+              MacModel.parse("MacBook Air 13\" M2")?.key != MacModel.parse("MacBook Pro 13\" M2")?.key)
+        // 标准写法必须能往返解析，否则每次启动都会再改写一次
+        for model in MacModel.catalog {
+            check("机型-目录「\(model.displayName)」可往返",
+                  MacModel.parse(model.displayName)?.key == model.key,
+                  "\(String(describing: MacModel.parse(model.displayName)?.key))")
+        }
 
         print(failures == 0 ? "\nALL CHECKS PASSED" : "\n\(failures) CHECK(S) FAILED")
         exit(failures == 0 ? 0 : 1)

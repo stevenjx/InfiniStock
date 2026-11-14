@@ -166,6 +166,7 @@ struct ItemDetailContent: View {
             costSection
             specSection
             orderSection
+            priceHistorySection
         }
         .alert("改价未生效", isPresented: Binding(
             get: { priceError != nil },
@@ -335,6 +336,13 @@ struct ItemDetailContent: View {
                 priceError = "未通过身份验证，标价未改动"
                 return
             }
+            PriceAudit.record(
+                item: item,
+                oldPrice: item.listPrice,
+                newPrice: advice.suggestedPrice,
+                source: .advice,
+                in: modelContext
+            )
             item.listPrice = advice.suggestedPrice
             // 与编辑弹窗同一个落盘路径；标价不参与 Spotlight 索引
             try? modelContext.save()
@@ -413,6 +421,64 @@ struct ItemDetailContent: View {
                 }
             }
         }
+    }
+
+    // MARK: - 改价记录
+
+    /// 只在真的改过价时出现。对账时，「这台为什么从 420 万变成 380 万」
+    /// 只能靠这里回答；没有记录的面板只显示当前值，看不出是怎么走到这一步的。
+    @ViewBuilder
+    private var priceHistorySection: some View {
+        let changes = PriceAudit.history(for: item)
+        if !changes.isEmpty {
+            PanelSection(title: "改价记录", trailing: "\(changes.count) 次") {
+                VStack(spacing: 0) {
+                    ForEach(Array(changes.prefix(6))) { change in
+                        if change.id != changes.prefix(6).first?.id { Hairline() }
+                        priceChangeRow(change)
+                    }
+                    if changes.count > 6 {
+                        Hairline()
+                        Text("还有 \(changes.count - 6) 次更早的记录")
+                            .font(Token.Typography.caption)
+                            .foregroundStyle(Token.Ink.tertiary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.top, 6)
+                    }
+                }
+            }
+        }
+    }
+
+    private func priceChangeRow(_ change: PriceChange) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: Token.Space.s) {
+                Text(change.changedAt.compactStamp)
+                    .font(Token.Typography.caption)
+                    .foregroundStyle(Token.Ink.tertiary)
+                Text(change.source.label)
+                    .font(.system(size: 10))
+                    .foregroundStyle(Token.Ink.tertiary)
+                Spacer(minLength: 0)
+                Text(change.delta.signedMMK)
+                    .font(Token.Typography.money)
+                    .foregroundStyle(change.delta < 0 ? Token.Status.danger : Token.Status.ok)
+            }
+            HStack(spacing: 4) {
+                Text(change.oldPrice.mmk)
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 8))
+                Text(change.newPrice.mmk)
+                if let margin = change.marginAfter {
+                    Text("· 毛利率 \(Money.text(margin))%")
+                        .foregroundStyle(Token.Ink.tertiary)
+                }
+            }
+            .font(Token.Typography.caption)
+            .foregroundStyle(Token.Ink.secondary)
+        }
+        .padding(.vertical, 6)
+        .accessibilityElement(children: .combine)
     }
 
     private func marginText(_ profit: Decimal, base: Decimal) -> String {

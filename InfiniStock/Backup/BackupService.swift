@@ -96,6 +96,20 @@ enum BackupService {
             )
         }
 
+        // 改价记录挂在机器上，按序列号导出/恢复，换机后对账链不断
+        let priceChanges = items.flatMap { item in
+            (item.priceChanges ?? []).map { change in
+                BackupSnapshot.PriceChangeDTO(
+                    itemSerial: item.serialNumber,
+                    changedAt: change.changedAt,
+                    oldPrice: change.oldPrice.plainString,
+                    newPrice: change.newPrice.plainString,
+                    landedCost: change.landedCostAtChange.plainString,
+                    source: change.sourceRaw
+                )
+            }
+        }
+
         return BackupSnapshot(
             formatVersion: BackupSnapshot.currentFormatVersion,
             exportedAt: now,
@@ -103,7 +117,8 @@ enum BackupService {
             items: itemDTOs,
             orders: orderDTOs,
             batches: batchDTOs,
-            shopSettings: ShopSettings.load()
+            shopSettings: ShopSettings.load(),
+            priceChanges: priceChanges
         )
     }
 
@@ -231,6 +246,20 @@ enum BackupService {
             item.batch = dto.batchName.flatMap { batchByName[$0] }
             context.insert(item)
             itemBySerial[dto.serialNumber] = item
+        }
+
+        // 旧备份没有这一段，nil 直接跳过——恢复后改价历史从今天开始记，金额不受影响
+        for dto in snapshot.priceChanges ?? [] {
+            guard let item = itemBySerial[dto.itemSerial] else { continue }
+            let change = PriceChange(
+                oldPrice: dto.oldPrice.decimalValue,
+                newPrice: dto.newPrice.decimalValue,
+                landedCostAtChange: dto.landedCost.decimalValue,
+                source: PriceChangeSource(rawValue: dto.source) ?? .edit,
+                changedAt: dto.changedAt
+            )
+            change.item = item
+            context.insert(change)
         }
 
         if let settings = snapshot.shopSettings {

@@ -172,6 +172,12 @@ struct RootView: View {
             DebugSeed.seedIfRequested(modelContext)
             applyDebugUIRequest()
             #endif
+            // 型号是统计的分组键，历史数据里手打的变体在这里归一一次。
+            // 已经标准的写法会被解析成同一个键，不会反复改写。
+            if MacModel.migrate(allItems) > 0 {
+                try? modelContext.save()
+            }
+
             // 调试库里的样例数据不能写进用户真实的备份目录：那会污染备份历史，
             // 还会因为保留份数把真正的快照挤掉。
             if !AppStore.shared.isDebugStore {

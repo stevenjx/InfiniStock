@@ -123,6 +123,13 @@ struct ItemEditSheet: View {
     }
 
     private func commit(listPrice: Decimal, health: Int, cycles: Int) {
+        PriceAudit.record(
+            item: item,
+            oldPrice: item.listPrice,
+            newPrice: listPrice,
+            source: .edit,
+            in: context
+        )
         item.listPrice = listPrice
         item.condition = condition
         item.batteryHealth = health

@@ -44,6 +44,9 @@ final class Item {
 
     var order: Order?
     var batch: Batch?
+    /// 标价变动历史。删除机器时一并删除：没有机器的改价记录没有意义
+    @Relationship(deleteRule: .cascade, inverse: \PriceChange.item)
+    var priceChanges: [PriceChange]?
 
     init(
         serialNumber: String,
