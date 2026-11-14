@@ -21,6 +21,9 @@ struct ShopSettings: Codable, Equatable {
     var targetMarginPercent: Int = 15
     /// 每天首次启动自动备份；关掉后只能手动备份
     var autoBackupEnabled: Bool = true
+    /// 用户点过「以后再说」。只在启动提示里用，待办仍会继续提醒，
+    /// 否则一次「稍后」就能让备份这件事永久消失。
+    var backupPromptDismissed: Bool = false
     /// 备份目录里保留的份数
     var backupRetention: Int = 14
 
@@ -36,6 +39,7 @@ struct ShopSettings: Codable, Equatable {
         defaultPaymentMethod: String = PaymentMethod.cash.rawValue,
         targetMarginPercent: Int = 15,
         autoBackupEnabled: Bool = true,
+        backupPromptDismissed: Bool = false,
         backupRetention: Int = 14
     ) {
         self.shopName = shopName
@@ -47,6 +51,7 @@ struct ShopSettings: Codable, Equatable {
         self.defaultPaymentMethod = defaultPaymentMethod
         self.targetMarginPercent = targetMarginPercent
         self.autoBackupEnabled = autoBackupEnabled
+        self.backupPromptDismissed = backupPromptDismissed
         self.backupRetention = backupRetention
     }
 
@@ -62,6 +67,7 @@ struct ShopSettings: Codable, Equatable {
             ?? PaymentMethod.cash.rawValue
         targetMarginPercent = try container.decodeIfPresent(Int.self, forKey: .targetMarginPercent) ?? 15
         autoBackupEnabled = try container.decodeIfPresent(Bool.self, forKey: .autoBackupEnabled) ?? true
+        backupPromptDismissed = try container.decodeIfPresent(Bool.self, forKey: .backupPromptDismissed) ?? false
         backupRetention = try container.decodeIfPresent(Int.self, forKey: .backupRetention) ?? 14
     }
 

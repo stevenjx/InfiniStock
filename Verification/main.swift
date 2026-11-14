@@ -1153,6 +1153,32 @@ struct Verify {
         check("保修-不计入涉及台数", TodoCenter.involvedCount(warHits) == 0,
               "\(TodoCenter.involvedCount(warHits))")
 
+        // MARK: 备份提醒
+
+        let neverBackedUp = TodoCenter.build(items: [], backup: .notConfigured)
+        check("备份-从未备份进待办", neverBackedUp.first?.kind == .backupStale,
+              "\(String(describing: neverBackedUp.first?.kind))")
+        check("备份-副标题写明从未备份", neverBackedUp.first?.subtitle == "从未备份",
+              neverBackedUp.first?.subtitle ?? "nil")
+        check("备份-不占用待办成本", TodoCenter.involvedCost(neverBackedUp) == 0,
+              "\(TodoCenter.involvedCost(neverBackedUp))")
+        check("备份-不计入涉及台数", TodoCenter.involvedCount(neverBackedUp) == 0)
+
+        let staleBackup = TodoCenter.build(items: [], backup: .stale(days: 9))
+        check("备份-过期天数写进副标题", staleBackup.first?.subtitle.contains("9") == true,
+              staleBackup.first?.subtitle ?? "nil")
+
+        check("备份-新鲜的备份不产生待办", TodoCenter.build(items: [], backup: nil).isEmpty)
+
+        // 备份永远排在最后：它每天都成立，顶到最前面只会让人习惯性忽略
+        let unpricedForOrder = Item(serialNumber: "B-ORDER", modelName: "Order", costCNY: 1000,
+                                    exchangeRate: 1, shipping: 0, listPrice: 0)
+        war.insert(unpricedForOrder)
+        let ordered = TodoCenter.build(items: [unpricedForOrder], backup: .notConfigured)
+        check("备份-排在待办最后", ordered.last?.kind == .backupStale,
+              "\(String(describing: ordered.last?.kind))")
+        check("备份-确有其他待办排在前面", ordered.count == 2, "\(ordered.count)")
+
 
         // MARK: U5 客户聚合
 

@@ -70,6 +70,7 @@ struct RootView: View {
     @State private var editingItem: Item?
     @State private var pendingDelete: [Item] = []
     @State private var deleteError: String?
+    @State private var showingBackupPrompt = false
 
     @Query private var allItems: [Item]
     @Query private var allOrders: [Order]
@@ -99,8 +100,16 @@ struct RootView: View {
         .sheet(isPresented: $appState.showingIntake) { IntakeSheet() }
         .sheet(isPresented: $appState.showingImport) { ImportSheet() }
         .sheet(isPresented: $appState.showingSettings) {
-            NavigationStack { SettingsView() }
+            NavigationStack { SettingsView(initialPane: appState.settingsPane) }
                 .frame(minWidth: 760, minHeight: 560)
+        }
+        .onChange(of: appState.showingSettings) { _, showing in
+            // 关掉之后复位，下次用 ⌘, 打开仍然是「店铺」，不会永远停在备份栏
+            if !showing { appState.settingsPane = .shop }
+        }
+        .sheet(isPresented: $showingBackupPrompt) {
+            BackupPromptSheet()
+                .frame(width: 420)
         }
         .sheet(isPresented: $showingSale) { SaleSheet(items: saleItems) }
         .sheet(isPresented: Binding(
@@ -163,7 +172,12 @@ struct RootView: View {
             DebugSeed.seedIfRequested(modelContext)
             applyDebugUIRequest()
             #endif
-            BackupService.autoBackupIfNeeded(from: modelContext)
+            // 调试库里的样例数据不能写进用户真实的备份目录：那会污染备份历史，
+            // 还会因为保留份数把真正的快照挤掉。
+            if !AppStore.shared.isDebugStore {
+                BackupService.autoBackupIfNeeded(from: modelContext)
+            }
+            maybePromptForBackupFolder()
         }
         .preferredColorScheme(debugScheme)
     }
@@ -234,6 +248,13 @@ struct RootView: View {
             }
         }
 
+        // 验收备份相关界面：settings=backup 直接落到备份分栏，backup-prompt 强制弹首次提示
+        if value("settings") == "backup" {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                appState.settingsPane = .backup
+                appState.showingSettings = true
+            }
+        }
         // 同理，截图验收统计窗口
         if lines.contains("dashboard") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -251,7 +272,8 @@ struct RootView: View {
                 get: { activeSection },
                 set: { section = $0 }
             ),
-            onSettings: { appState.showingSettings = true }
+            onSettings: { openSettings() },
+            onOpenBackup: { openSettings(.backup) }
         )
     }
 
@@ -372,7 +394,8 @@ struct RootView: View {
                     section = .orders
                     orderSelection = order.id
                 },
-                onIntake: { appState.showingIntake = true }
+                onIntake: { appState.showingIntake = true },
+                onOpenBackup: { openSettings(.backup) }
             )
         case .stock(let status):
             InventoryTableView(
@@ -544,6 +567,21 @@ struct RootView: View {
         guard canSell else { return }
         saleItems = selectedItems
         showingSale = true
+    }
+
+    private func openSettings(_ pane: SettingsPane = .shop) {
+        appState.settingsPane = pane
+        appState.showingSettings = true
+    }
+
+    /// 库里有货、又没配备份目录时，开机提示一次。
+    /// 「以后再说」只关掉这个弹窗，待办里那条备份提醒仍然会在。
+    private func maybePromptForBackupFolder() {
+        guard !AppStore.shared.isDebugStore, !allItems.isEmpty else { return }
+        let settings = ShopSettings.load()
+        guard settings.autoBackupEnabled, !settings.backupPromptDismissed else { return }
+        guard BackupService.backupFolder() == nil else { return }
+        showingBackupPrompt = true
     }
 
     private func setDetailVisible(_ visible: Bool) {

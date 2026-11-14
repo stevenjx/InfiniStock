@@ -135,6 +135,8 @@ struct ItemDetailContent: View {
     /// 只读一次设置：这里每帧都读会每帧解码一次 JSON。
     /// 改设置后重开详情即可看到新的目标毛利。
     @State private var settings = ShopSettings.load()
+    /// 改价验证失败时的提示
+    @State private var priceError: String?
 
     private var isSold: Bool { item.status == .sold }
 
@@ -164,6 +166,14 @@ struct ItemDetailContent: View {
             costSection
             specSection
             orderSection
+        }
+        .alert("改价未生效", isPresented: Binding(
+            get: { priceError != nil },
+            set: { if !$0 { priceError = nil } }
+        )) {
+            Button("好", role: .cancel) { priceError = nil }
+        } message: {
+            Text(priceError ?? "")
         }
     }
 
@@ -294,7 +304,7 @@ struct ItemDetailContent: View {
                         .font(Token.Typography.caption)
                         .foregroundStyle(Token.Status.ok)
                 } else {
-                    Button("采用") { apply(advice) }
+                    Button("采用") { adopt(advice) }
                         .controlSize(.small)
                         .help("把标价改为 \(advice.suggestedPrice.mmk)")
                 }
@@ -317,10 +327,18 @@ struct ItemDetailContent: View {
         return text
     }
 
-    private func apply(_ advice: PricingAdvice) {
-        item.listPrice = advice.suggestedPrice
-        // 与编辑弹窗同一个落盘路径；标价不参与 Spotlight 索引
-        try? modelContext.save()
+    /// 采用建议价同样是改价，走同一道验证。
+    /// 少了它，这道门只要换个入口就能绕过去。
+    private func adopt(_ advice: PricingAdvice) {
+        Task { @MainActor in
+            guard await BiometricGate.authenticate(reason: "改动标价需要验证身份") else {
+                priceError = "未通过身份验证，标价未改动"
+                return
+            }
+            item.listPrice = advice.suggestedPrice
+            // 与编辑弹窗同一个落盘路径；标价不参与 Spotlight 索引
+            try? modelContext.save()
+        }
     }
 
     // MARK: - 照片

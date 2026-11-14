@@ -5,13 +5,49 @@ import SwiftData
 ///
 /// 原来的版本是一个 Form 加一个「保存」按钮：进来看不到数据规模、看不到备份状态、
 /// 也不知道哪些阈值在影响待办。现在按「改什么」分组，每个分栏只回答一个问题。
+/// 设置左侧分栏。提成顶层类型，AppState 才能记住"从备份待办进来要落在哪一栏"。
+enum SettingsPane: String, CaseIterable, Identifiable {
+    case shop = "店铺"
+    case receipt = "单据凭证"
+    case pricing = "定价与汇率"
+    case backup = "数据与备份"
+    case about = "关于"
+
+    var id: String { rawValue }
+
+    var title: String { rawValue }
+
+    var icon: String {
+        switch self {
+        case .shop: "storefront"
+        case .receipt: "doc.plaintext"
+        case .pricing: "tag"
+        case .backup: "externaldrive.badge.checkmark"
+        case .about: "info.circle"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .shop: "抬头信息与开单默认值"
+        case .receipt: "凭证上印什么、保修多久"
+        case .pricing: "汇率、目标毛利与建议价口径"
+        case .backup: "自动备份、保留份数与恢复"
+        case .about: "版本、数据位置与快捷键"
+        }
+    }
+}
+
 struct SettingsView: View {
+    /// 打开时落在哪一栏
+    var initialPane: SettingsPane = .shop
+
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
 
     @State private var settings = ShopSettings.load()
     @State private var rateText = ""
-    @State private var pane: Pane = .shop
+    @State private var pane: SettingsPane = .shop
     @State private var justSaved = false
 
     @State private var itemCount = 0
@@ -19,39 +55,8 @@ struct SettingsView: View {
     @State private var backupFolder: URL?
     @State private var lastBackupAt: Date?
     @State private var showingDataSafety = false
+    @State private var choosingBackupFolder = false
     @State private var errorMessage: String?
-
-    enum Pane: String, CaseIterable, Identifiable {
-        case shop = "店铺"
-        case receipt = "单据凭证"
-        case pricing = "定价与汇率"
-        case backup = "数据与备份"
-        case about = "关于"
-
-        var id: String { rawValue }
-
-        var title: String { rawValue }
-
-        var icon: String {
-            switch self {
-            case .shop: "storefront"
-            case .receipt: "doc.plaintext"
-            case .pricing: "tag"
-            case .backup: "externaldrive.badge.checkmark"
-            case .about: "info.circle"
-            }
-        }
-
-        var subtitle: String {
-            switch self {
-            case .shop: "抬头信息与开单默认值"
-            case .receipt: "凭证上印什么、保修多久"
-            case .pricing: "汇率、目标毛利与建议价口径"
-            case .backup: "自动备份、保留份数与恢复"
-            case .about: "版本、数据位置与快捷键"
-            }
-        }
-    }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -92,7 +97,15 @@ struct SettingsView: View {
         }
         .onAppear {
             rateText = settings.defaultExchangeRate > 0 ? Money.text(settings.defaultExchangeRate) : ""
+            pane = initialPane
             refreshData()
+        }
+        .fileImporter(isPresented: $choosingBackupFolder, allowedContentTypes: [.folder]) { result in
+            if case .success(let url) = result {
+                BackupService.rememberFolder(url)
+                refreshData()
+                flashSaved()
+            }
         }
     }
 
@@ -112,7 +125,7 @@ struct SettingsView: View {
             .padding(.top, Token.Space.m)
             .padding(.bottom, Token.Space.m)
 
-            ForEach(Pane.allCases) { item in
+            ForEach(SettingsPane.allCases) { item in
                 railRow(item)
             }
 
@@ -122,7 +135,7 @@ struct SettingsView: View {
         .background(Token.Surface.sidebar)
     }
 
-    private func railRow(_ item: Pane) -> some View {
+    private func railRow(_ item: SettingsPane) -> some View {
         let selected = pane == item
         return Button {
             pane = item
@@ -326,6 +339,30 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var backupForm: some View {
+        if backupFolder == nil {
+            Section {
+                HStack(alignment: .top, spacing: Token.Space.s) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Token.Status.warn)
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("还没有备份目录")
+                            .font(Token.Typography.cellPrimary)
+                            .foregroundStyle(Token.Ink.primary)
+                        Text("整店的账只有一份，就在这台 Mac 的沙盒里。选一个文件夹，每天首次启动自动写一份过去。")
+                            .font(Token.Typography.caption)
+                            .foregroundStyle(Token.Ink.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Button("选择备份目录…") { choosingBackupFolder = true }
+                            .controlSize(.small)
+                    }
+                }
+                .padding(.vertical, 2)
+            } header: {
+                Text("需要处理")
+            }
+        }
+
         Section("当前数据") {
             LabeledContent("机器", value: "\(itemCount) 台")
             LabeledContent("单据", value: "\(orderCount) 张")
@@ -350,7 +387,7 @@ struct SettingsView: View {
                     .foregroundStyle(Token.Ink.secondary)
             }
             HStack(spacing: Token.Space.s) {
-                Button("选择备份目录…") { showingDataSafety = true }
+                Button("选择备份目录…") { choosingBackupFolder = true }
                 Button("立即备份") { runBackup() }
                     .disabled(backupFolder == nil)
             }

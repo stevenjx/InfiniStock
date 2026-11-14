@@ -308,6 +308,24 @@ enum BackupService {
         UserDefaults.standard.object(forKey: lastBackupKey) as? Date
     }
 
+    /// 超过这么多天没写备份，就算过期
+    nonisolated static let staleDays = 7
+
+    /// 待办要的提醒：没配目录是「从未备份」，配了但太久没写是「N 天没备份」。
+    /// nil 表示不必提醒。类型定义在 TodoCenter，Backup 依赖 Store 而不是反过来。
+    static func reminder(now: Date = .now) -> TodoCenter.BackupReminder? {
+        guard ShopSettings.load().autoBackupEnabled else { return nil }
+        guard let folder = backupFolder() else { return .notConfigured }
+        // 目录在，但可能被移动或删除；书签能解出来不代表写得进去，这里只做天数判断，
+        // 真正的失败会在写的时候暴露。
+        _ = folder
+        guard let last = lastBackupAt else { return .notConfigured }
+        let days = Calendar.current.dateComponents(
+            [.day], from: Calendar.current.startOfDay(for: last), to: Calendar.current.startOfDay(for: now)
+        ).day ?? 0
+        return days > staleDays ? .stale(days: days) : nil
+    }
+
     // MARK: - 写备份
 
     @discardableResult

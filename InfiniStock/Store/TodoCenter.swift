@@ -12,6 +12,7 @@ enum TodoKind: String, CaseIterable, Identifiable {
     case currencyRisk
     case weakBattery
     case aged
+    case backupStale
 
     var id: String { rawValue }
 
@@ -26,6 +27,7 @@ enum TodoKind: String, CaseIterable, Identifiable {
         case .currencyRisk: "汇率亏损"
         case .weakBattery: "电池偏弱"
         case .aged: "库龄超期"
+        case .backupStale: "备份过期"
         }
     }
 
@@ -40,6 +42,7 @@ enum TodoKind: String, CaseIterable, Identifiable {
         case .currencyRisk: "调价或换汇"
         case .weakBattery: "议价或备注"
         case .aged: "促销或调价"
+        case .backupStale: "去备份"
         }
     }
 }
@@ -49,7 +52,8 @@ struct TodoEntry: Identifiable {
     /// 选中标识：同一台机器可以有多条待办，所以必须带上类型
     struct Key: Hashable {
         let kind: TodoKind
-        let target: PersistentIdentifier
+        /// 备份这类全局待办没有特定目标，所以是可选的
+        let target: PersistentIdentifier?
     }
 
     let id: Key
@@ -74,13 +78,20 @@ enum TodoCenter {
     /// 保修到期前几天开始提醒。太早会天天看见，太晚来不及准备
     static let warrantyWarningDays = 3
 
+    /// 备份是否该催。由调用方从 BackupService 取，保持这里只依赖传入的数据。
+    enum BackupReminder: Equatable {
+        case notConfigured
+        case stale(days: Int)
+    }
+
     static func build(
         items: [Item],
         batches: [Batch] = [],
         orders: [Order] = [],
         currentRate: Decimal = 0,
         now: Date = .now,
-        warrantyDays: Int = 0
+        warrantyDays: Int = 0,
+        backup: BackupReminder? = nil
     ) -> [TodoEntry] {
         var entries: [TodoEntry] = []
         let inStock = items.filter { $0.status == .inStock }
@@ -188,6 +199,32 @@ enum TodoCenter {
                     order: item.order
                 ))
             }
+        }
+
+        // 备份不是货、不是钱，是「整店的账只有一份」这件事本身。
+        // 排在最后：它每天都成立，顶到最前面只会让人习惯性忽略。
+        if let backup {
+            let subtitle: String
+            let reason: String
+            switch backup {
+            case .notConfigured:
+                subtitle = "从未备份"
+                reason = "整店的账只有一份，选个目录每天自动存"
+            case .stale(let days):
+                subtitle = "上次备份 \(days) 天前"
+                reason = "超过 \(BackupService.staleDays) 天没写备份，别再拖了"
+            }
+            entries.append(TodoEntry(
+                id: TodoEntry.Key(kind: .backupStale, target: nil),
+                kind: .backupStale,
+                title: "备份",
+                subtitle: subtitle,
+                reason: reason,
+                amount: 0,
+                item: nil,
+                batch: nil,
+                order: nil
+            ))
         }
 
         let rank = Dictionary(

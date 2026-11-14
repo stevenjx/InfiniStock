@@ -7,6 +7,8 @@ final class AppState {
     var showingIntake = false
     var showingSearch = false
     var showingSettings = false
+    /// 打开设置时定位到哪个分栏（备份待办点进来要直达）
+    var settingsPane: SettingsPane = .shop
     var showingImport = false
     /// 分区快捷键（⌘1–⌘5）请求；由 RootView 消费
     var sectionRequest: SidebarSection?

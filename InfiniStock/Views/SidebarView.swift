@@ -7,6 +7,8 @@ import SwiftData
 struct SidebarView: View {
     @Binding var selection: SidebarSection
     var onSettings: () -> Void = {}
+    /// 点「未配备份」直达设置里的备份分栏
+    var onOpenBackup: () -> Void = {}
 
     @Query private var items: [Item]
     @Query private var batches: [Batch]
@@ -17,7 +19,8 @@ struct SidebarView: View {
         TodoCenter.build(
             items: items, batches: batches, orders: orders,
             currentRate: settings.defaultExchangeRate,
-            warrantyDays: settings.warrantyDays
+            warrantyDays: settings.warrantyDays,
+            backup: BackupService.reminder()
         ).count
     }
 
@@ -119,15 +122,21 @@ struct SidebarView: View {
             .padding(.top, Token.Space.s)
 
             VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 5) {
-                    Circle()
-                        .fill(status.tone)
-                        .frame(width: 5, height: 5)
-                    Text(status.text)
-                        .font(.system(size: 10))
-                        .foregroundStyle(Token.Ink.tertiary)
-                    Spacer(minLength: 0)
+                // 备份没配好时这条要能点：侧栏是唯一常驻的位置，灰字点不动等于没有提醒
+                Button(action: onOpenBackup) {
+                    HStack(spacing: 5) {
+                        Circle()
+                            .fill(status.tone)
+                            .frame(width: 5, height: 5)
+                        Text(status.text)
+                            .font(.system(size: 10))
+                            .foregroundStyle(status.healthy ? Token.Ink.tertiary : status.tone)
+                        Spacer(minLength: 0)
+                    }
+                    .contentShape(.rect)
                 }
+                .buttonStyle(.plain)
+                .help("打开备份设置")
                 Text(shopName.isEmpty ? "未设置店名" : shopName)
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(Token.Ink.secondary)
@@ -143,14 +152,14 @@ struct SidebarView: View {
         settings.shopName.trimmingCharacters(in: .whitespaces)
     }
 
-    private func backupStatus(_ settings: ShopSettings) -> (text: String, tone: Color) {
+    private func backupStatus(_ settings: ShopSettings) -> (text: String, tone: Color, healthy: Bool) {
         if !settings.autoBackupEnabled {
-            return ("自动备份已关闭", Token.Status.warn)
+            return ("自动备份已关闭", Token.Status.warn, false)
         }
         if BackupService.backupFolder() == nil {
-            return ("仅存本机 · 未配备份", Token.Status.warn)
+            return ("仅存本机 · 未配备份", Token.Status.warn, false)
         }
-        return ("每日自动备份已开启", Token.Status.ok)
+        return ("每日自动备份已开启", Token.Status.ok, true)
     }
 
     /// 库存的四个状态共用一个入口：选中态按"是不是库存分区"判断，

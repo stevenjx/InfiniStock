@@ -14,6 +14,8 @@ struct ItemEditSheet: View {
     @State private var cyclesText = ""
     @State private var condition: ItemCondition = .p95
     @State private var errorMessage: String?
+    /// 验证期间禁用保存，避免重复触发系统弹窗
+    @State private var authenticating = false
 
     private var price: Decimal {
         Money.parse(priceText) ?? 0
@@ -65,6 +67,7 @@ struct ItemEditSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("保存") { save() }
+                        .disabled(authenticating)
                         .disabled(priceText.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
@@ -100,6 +103,26 @@ struct ItemEditSheet: View {
             return
         }
 
+        // 只有动了标价才验证。改电池健康、改颜色是补录事实，加一道门只是添麻烦；
+        // 改价是钱的事，柜台后面谁都能点的话，这道门就没有意义。
+        guard listPrice != item.listPrice else {
+            commit(listPrice: listPrice, health: health, cycles: cycles)
+            return
+        }
+
+        authenticating = true
+        Task { @MainActor in
+            let passed = await BiometricGate.authenticate(reason: "改动标价需要验证身份")
+            authenticating = false
+            guard passed else {
+                errorMessage = "未通过身份验证，标价与其他改动均未保存"
+                return
+            }
+            commit(listPrice: listPrice, health: health, cycles: cycles)
+        }
+    }
+
+    private func commit(listPrice: Decimal, health: Int, cycles: Int) {
         item.listPrice = listPrice
         item.condition = condition
         item.batteryHealth = health

@@ -4,6 +4,8 @@ import SwiftData
 struct AppStoreBundle {
     let container: ModelContainer
     let cloudSyncEnabled: Bool
+    /// 调试库：样例数据在里面，别把它写进用户真实的备份目录
+    var isDebugStore = false
 }
 
 enum AppStore {
@@ -32,7 +34,7 @@ enum AppStore {
             guard let container = try? ModelContainer(for: schema, configurations: [config]) else {
                 fatalError("调试库初始化失败：\(url.path)")
             }
-            return AppStoreBundle(container: container, cloudSyncEnabled: false)
+            return AppStoreBundle(container: container, cloudSyncEnabled: false, isDebugStore: true)
         }
         #endif
 

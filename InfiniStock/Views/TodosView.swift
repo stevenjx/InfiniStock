@@ -63,6 +63,8 @@ struct TodosView: View {
     var onOpenOrder: (Order) -> Void = { _ in }
     /// 空状态里的「去入库」
     var onIntake: () -> Void = {}
+    /// 备份待办：跳到设置里的备份分栏
+    var onOpenBackup: () -> Void = {}
 
     @Query private var items: [Item]
     @Query private var batches: [Batch]
@@ -81,7 +83,8 @@ struct TodosView: View {
         return TodoCenter.build(
             items: items, batches: batches, orders: orders,
             currentRate: settings.defaultExchangeRate,
-            warrantyDays: settings.warrantyDays
+            warrantyDays: settings.warrantyDays,
+            backup: BackupService.reminder()
         )
     }
 
@@ -232,7 +235,9 @@ struct TodosView: View {
     }
 
     private func open(_ entry: TodoEntry) {
-        if let item = entry.item {
+        if entry.kind == .backupStale {
+            onOpenBackup()
+        } else if let item = entry.item {
             onOpenItem(item)
         } else if let batch = entry.batch {
             onOpenBatch(batch)
@@ -251,6 +256,7 @@ struct TodosView: View {
         case .currencyRisk: .danger
         case .weakBattery: .warn
         case .aged: .neutral
+        case .backupStale: .danger
         }
     }
 
