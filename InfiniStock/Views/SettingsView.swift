@@ -10,6 +10,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
     case shop = "店铺"
     case receipt = "单据凭证"
     case pricing = "定价与汇率"
+    case appearance = "外观"
     case backup = "数据与备份"
     case about = "关于"
 
@@ -22,6 +23,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .shop: "storefront"
         case .receipt: "doc.plaintext"
         case .pricing: "tag"
+        case .appearance: "circle.lefthalf.filled"
         case .backup: "externaldrive.badge.checkmark"
         case .about: "info.circle"
         }
@@ -32,6 +34,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .shop: "抬头信息与开单默认值"
         case .receipt: "凭证上印什么、保修多久"
         case .pricing: "汇率、目标毛利与建议价口径"
+        case .appearance: "浅色、深色或跟随系统"
         case .backup: "自动备份、保留份数与恢复"
         case .about: "版本、数据位置与快捷键"
         }
@@ -39,6 +42,10 @@ enum SettingsPane: String, CaseIterable, Identifiable {
 }
 
 struct SettingsView: View {
+    /// 设置窗口的唯一尺寸。放在这里而不是调用处，
+    /// 免得哪天加个 sheet 又顺手写一套数字。
+    static let windowSize = CGSize(width: 780, height: 640)
+
     /// 打开时落在哪一栏
     var initialPane: SettingsPane = .shop
 
@@ -189,6 +196,7 @@ struct SettingsView: View {
                 case .shop: shopForm
                 case .receipt: receiptForm
                 case .pricing: pricingForm
+                case .appearance: appearanceForm
                 case .backup: backupForm
                 case .about: aboutForm
                 }
@@ -197,7 +205,7 @@ struct SettingsView: View {
             // 分组表单默认自带一层灰底，铺在白卡上会出现一块突兀的圆角灰砖
             .scrollContentBackground(.hidden)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(minWidth: 520, maxWidth: .infinity, maxHeight: .infinity)
         .background(Token.Surface.card)
     }
 
@@ -409,6 +417,56 @@ struct SettingsView: View {
                 .font(Token.Typography.caption)
                 .foregroundStyle(Token.Ink.secondary)
         }
+    }
+
+    // MARK: - 外观
+
+    @ViewBuilder
+    private var appearanceForm: some View {
+        Section {
+            // 用分段控件而不是下拉：三个选项都是即时预览的，分段能让它们在眼前
+            // 一次看全，改变后整个窗口立刻跟着换，不用退出设置去验证。
+            Picker("主题", selection: Binding(
+                get: { settings.appearancePreference },
+                set: { settings.appearance = $0.rawValue }
+            )) {
+                ForEach(AppearancePreference.allCases) { option in
+                    Text(option.label).tag(option)
+                }
+            }
+            .pickerStyle(.segmented)
+        } header: {
+            Text("界面外观")
+        } footer: {
+            Text("「自动」跟随 macOS 的系统设置：系统切到深色，这里也跟着切。选择会保存，下次打开仍是这个外观。")
+        }
+
+        Section("预览") {
+            HStack(spacing: Token.Space.m) {
+                appearanceSwatch("卡片", token: Token.Surface.card, text: Token.Ink.primary)
+                appearanceSwatch("画布", token: Token.Surface.canvas, text: Token.Ink.primary)
+                appearanceSwatch("侧栏", token: Token.Surface.sidebar, text: Token.Ink.secondary)
+            }
+            .padding(.vertical, 4)
+        }
+    }
+
+    /// 三块实际在用的底色。用同一个 Token 而不是写死颜色，
+    /// 预览才会跟着当前主题真的变，而不是画一个假的色卡。
+    private func appearanceSwatch(_ title: String, token: Color, text: Color) -> some View {
+        RoundedRectangle(cornerRadius: Token.Radius.card)
+            .fill(token)
+            .frame(height: 52)
+            .overlay {
+                Text(title)
+                    .font(Token.Typography.caption)
+                    .foregroundStyle(text)
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: Token.Radius.card)
+                    .strokeBorder(Token.Border.hairline, lineWidth: 1)
+            }
+            .frame(maxWidth: .infinity)
     }
 
     // MARK: - 关于

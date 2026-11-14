@@ -1644,6 +1644,27 @@ struct Verify {
               "\(auditedSnapshot.priceChanges?.count ?? 0)")
         check("改价-备份版本升到 6", auditedSnapshot.formatVersion == 6, "\(auditedSnapshot.formatVersion)")
 
+        // MARK: 外观
+        check("外观-默认自动", ShopSettings().appearancePreference == .auto)
+        check("外观-自动不覆盖系统", AppearancePreference.auto.colorScheme == nil)
+        check("外观-浅色映射", AppearancePreference.light.colorScheme == .light)
+        check("外观-深色映射", AppearancePreference.dark.colorScheme == .dark)
+        // 存的是字符串：无法识别的值必须回落自动，而不是崩或变成别的主题
+        check("外观-非法值回落自动",
+              ShopSettings(appearance: "midnight").appearancePreference == .auto)
+        // 旧配置没有 appearance 字段时不能清空其它设置
+        let appearanceLegacyJSON = #"{"shopName":"老店","phone":"0912","warrantyDays":15}"#
+        let appearanceLegacy = try JSONDecoder().decode(ShopSettings.self, from: Data(appearanceLegacyJSON.utf8))
+        check("外观-旧配置补默认值", appearanceLegacy.appearancePreference == AppearancePreference.auto)
+        check("外观-旧配置保留店名", appearanceLegacy.shopName == "老店", appearanceLegacy.shopName)
+        check("外观-旧配置保留保修天数", appearanceLegacy.warrantyDays == 15, "\(appearanceLegacy.warrantyDays)")
+        // 往返：存进去再读出来还是同一个偏好
+        var appearanceRoundTrip = ShopSettings()
+        appearanceRoundTrip.appearance = AppearancePreference.dark.rawValue
+        let appearanceDecoded = try JSONDecoder().decode(
+            ShopSettings.self, from: JSONEncoder().encode(appearanceRoundTrip))
+        check("外观-往返一致", appearanceDecoded.appearancePreference == AppearancePreference.dark)
+
         // MARK: 机型解析与归一
         let modelCases: [(input: String, expected: String?)] = [
             ("MacBook Air M2 13\"", "MacBook Air 13\" M2"),

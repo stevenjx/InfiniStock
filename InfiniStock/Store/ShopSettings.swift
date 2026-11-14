@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 /// 店铺信息。存在 UserDefaults 里——它是配置而非业务数据，
 /// 但仍会写进备份快照，避免换机后凭证抬头丢失。
@@ -26,6 +27,8 @@ struct ShopSettings: Codable, Equatable {
     var backupPromptDismissed: Bool = false
     /// 备份目录里保留的份数
     var backupRetention: Int = 14
+    /// 界面外观。存字符串而不是枚举，解码时无法识别的值回落「跟随系统」
+    var appearance: String = AppearancePreference.auto.rawValue
 
     private static let key = "infinistock.shopSettings"
 
@@ -40,7 +43,8 @@ struct ShopSettings: Codable, Equatable {
         targetMarginPercent: Int = 15,
         autoBackupEnabled: Bool = true,
         backupPromptDismissed: Bool = false,
-        backupRetention: Int = 14
+        backupRetention: Int = 14,
+        appearance: String = AppearancePreference.auto.rawValue
     ) {
         self.shopName = shopName
         self.phone = phone
@@ -53,6 +57,7 @@ struct ShopSettings: Codable, Equatable {
         self.autoBackupEnabled = autoBackupEnabled
         self.backupPromptDismissed = backupPromptDismissed
         self.backupRetention = backupRetention
+        self.appearance = appearance
     }
 
     init(from decoder: any Decoder) throws {
@@ -69,10 +74,16 @@ struct ShopSettings: Codable, Equatable {
         autoBackupEnabled = try container.decodeIfPresent(Bool.self, forKey: .autoBackupEnabled) ?? true
         backupPromptDismissed = try container.decodeIfPresent(Bool.self, forKey: .backupPromptDismissed) ?? false
         backupRetention = try container.decodeIfPresent(Int.self, forKey: .backupRetention) ?? 14
+        appearance = try container.decodeIfPresent(String.self, forKey: .appearance)
+            ?? AppearancePreference.auto.rawValue
     }
 
     var paymentMethod: PaymentMethod {
         PaymentMethod(rawValue: defaultPaymentMethod) ?? .cash
+    }
+
+    var appearancePreference: AppearancePreference {
+        AppearancePreference(rawValue: appearance) ?? .auto
     }
 
     static func load() -> ShopSettings {
@@ -96,4 +107,30 @@ enum PaymentMethod: String, Codable, CaseIterable, Identifiable {
     case other = "其他"
 
     var id: String { rawValue }
+}
+
+/// 界面外观。auto 交给系统，跟随 macOS 的浅色/深色切换。
+enum AppearancePreference: String, CaseIterable, Identifiable {
+    case auto
+    case light
+    case dark
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .auto: "自动"
+        case .light: "浅色"
+        case .dark: "深色"
+        }
+    }
+
+    /// 传给 preferredColorScheme；自动时传 nil，让系统决定
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .auto: nil
+        case .light: .light
+        case .dark: .dark
+        }
+    }
 }

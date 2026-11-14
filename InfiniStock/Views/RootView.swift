@@ -57,6 +57,11 @@ struct RootView: View {
     @State private var reportRange: ReportRange = .thisMonth
     /// 只在 Debug 截图核对时被 `ui.flag` 赋值，Release 恒为 nil。
     @State private var debugScheme: ColorScheme?
+    /// 外观设置。改完立即生效：设置页写入后回到主窗口就已是新外观。
+    /// 不缓存到 @State，避免两处状态各自为政。
+    private var appearancePreference: AppearancePreference {
+        ShopSettings.load().appearancePreference
+    }
 
     @State private var showingSale = false
     /// 打开出库单那一刻的机器快照。不能直接把派生的 selectedItems 传进 sheet：
@@ -101,7 +106,12 @@ struct RootView: View {
         .sheet(isPresented: $appState.showingImport) { ImportSheet() }
         .sheet(isPresented: $appState.showingSettings) {
             NavigationStack { SettingsView(initialPane: appState.settingsPane) }
-                .frame(minWidth: 760, minHeight: 560)
+                // 固定成同一个尺寸：设置内容按「左栏 + 表单」排，
+                // 让窗口大小随内容跳来跳去只会让每次打开都换个位置。
+                .frame(
+                    width: SettingsView.windowSize.width,
+                    height: SettingsView.windowSize.height
+                )
         }
         .onChange(of: appState.showingSettings) { _, showing in
             // 关掉之后复位，下次用 ⌘, 打开仍然是「店铺」，不会永远停在备份栏
@@ -192,7 +202,8 @@ struct RootView: View {
             }
             maybePromptForBackupFolder()
         }
-        .preferredColorScheme(debugScheme)
+        // 调试截图优先；否则用设置里的外观，「自动」时不干预
+        .preferredColorScheme(debugScheme ?? appearancePreference.colorScheme)
     }
 
     // MARK: - 调试入口
