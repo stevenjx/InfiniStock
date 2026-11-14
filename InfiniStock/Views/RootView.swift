@@ -172,6 +172,13 @@ struct RootView: View {
             DebugSeed.seedIfRequested(modelContext)
             applyDebugUIRequest()
             #endif
+            // 空库时落在库存页。系统会恢复上次的窗口与侧栏状态，
+            // 但「上次停在客户管理」在空库上没有意义——那里的引导文案会指回库存，
+            // 而库存页才是唯一能开始的地方。
+            if allItems.isEmpty {
+                section = .stock(.inStock)
+            }
+
             // 型号是统计的分组键，历史数据里手打的变体在这里归一一次。
             // 已经标准的写法会被解析成同一个键，不会反复改写。
             if MacModel.migrate(allItems) > 0 {
