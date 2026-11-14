@@ -105,15 +105,15 @@ struct DashboardContent: View {
                 value: stats.todayProfit.signedMMK,
                 systemImage: "chart.line.uptrend.xyaxis",
                 tone: stats.todayProfit < 0 ? .danger : .ok,
-                delta: stats.todayMarginRate.map { "毛利率 \(Money.text($0))%" } ?? "今日无成交",
+                delta: stats.todayMarginRate.map { String(localized: "毛利率 \(Money.text($0))%") } ?? "今日无成交",
                 deltaTone: (stats.todayMarginRate ?? 0) < 0 ? .danger : .ok
             )
             StatCard(
                 title: "在库台数",
-                value: "\(stats.inStockCount) 台",
+                value: String(localized: "\(stats.inStockCount) 台"),
                 systemImage: "shippingbox.fill",
                 tone: .neutral,
-                delta: stats.overdueItems.isEmpty ? "无呆滞" : "\(stats.overdueItems.count) 台超期",
+                delta: stats.overdueItems.isEmpty ? "无呆滞" : String(localized: "\(stats.overdueItems.count) 台超期"),
                 deltaTone: stats.overdueItems.isEmpty ? .neutral : .danger
             )
             StatCard(
@@ -121,7 +121,7 @@ struct DashboardContent: View {
                 value: stats.stockCostValue.mmk,
                 systemImage: "banknote.fill",
                 tone: .warn,
-                delta: "标价合计 \(stats.stockListedValue.mmk)"
+                delta: String(localized: "标价合计 \(stats.stockListedValue.mmk)")
             )
             StatCard(
                 title: "应收未收",
@@ -129,7 +129,7 @@ struct DashboardContent: View {
                 systemImage: "exclamationmark.bubble.fill",
                 tone: stats.outstandingAmount > 0 ? .danger : .ok,
                 delta: stats.outstandingOrderCount > 0
-                    ? "\(stats.outstandingOrderCount) 张单未收讫"
+                    ? String(localized: "\(stats.outstandingOrderCount) 张单未收讫")
                     : "全部收讫",
                 deltaTone: stats.outstandingAmount > 0 ? .danger : .ok
             )
@@ -230,7 +230,7 @@ struct DashboardContent: View {
                                 .font(Token.Typography.caption)
                                 .foregroundStyle(Token.Ink.secondary)
                             Spacer()
-                            Text("\(bucket.count) 台")
+                            Text(String(localized: "\(bucket.count) 台"))
                                 .font(Token.Typography.caption)
                                 .foregroundStyle(Token.Ink.primary)
                             Text(bucket.value.mmk)
@@ -278,7 +278,7 @@ struct DashboardContent: View {
                                 .font(Token.Typography.caption)
                                 .foregroundStyle(Token.Ink.secondary)
                             Spacer()
-                            Text("\(slice.count) 笔")
+                            Text(String(localized: "\(slice.count) 笔"))
                                 .font(Token.Typography.caption)
                                 .foregroundStyle(Token.Ink.primary)
                             Text(slice.amount.mmk)
@@ -298,7 +298,7 @@ struct DashboardContent: View {
     /// 回答「这批货还能卖多久」。只看现有库存和近 30 天卖速，
     /// 不引入历史快照，所以每个数字都能从库里现有的记录推回去。
     private var efficiencyCard: some View {
-        SectionCard(title: "库存效率 · 近 \(stats.windowDays) 天") {
+        SectionCard(title: String(localized: "库存效率 · 近 \(stats.windowDays) 天")) {
             if stats.inStockCount == 0 && stats.soldInWindow == 0 {
                 EmptyState(
                     title: "还没有数据",
@@ -312,14 +312,14 @@ struct DashboardContent: View {
                         efficiencyMetric(
                             title: "可售天数",
                             value: supplyText,
-                            hint: "按近 \(stats.windowDays) 天卖速",
+                            hint: String(localized: "按近 \(stats.windowDays) 天卖速"),
                             tone: supplyTone
                         )
                         metricDivider
                         efficiencyMetric(
-                            title: "近 \(stats.windowDays) 天售出",
-                            value: "\(stats.soldInWindow) 台",
-                            hint: "在库 \(stats.inStockCount) 台"
+                            title: String(localized: "近 \(stats.windowDays) 天售出"),
+                            value: String(localized: "\(stats.soldInWindow) 台"),
+                            hint: String(localized: "在库 \(stats.inStockCount) 台")
                         )
                         metricDivider
                         efficiencyMetric(
@@ -336,7 +336,7 @@ struct DashboardContent: View {
                     if !stats.velocity.isEmpty {
                         Hairline()
                         velocityTable
-                        Text("可售天数 = 在库 ÷ 近 \(stats.windowDays) 天日均销量；窗口内没有售出的型号标为「无成交」")
+                        Text(String(localized: "可售天数 = 在库 ÷ 近 \(stats.windowDays) 天日均销量；窗口内没有售出的型号标为「无成交」"))
                             .font(Token.Typography.caption)
                             .foregroundStyle(Token.Ink.tertiary)
                     }
@@ -348,7 +348,7 @@ struct DashboardContent: View {
     private var supplyText: String {
         guard stats.inStockCount > 0, let days = stats.daysOfSupply else { return "—" }
         if days >= 365 { return "一年以上" }
-        return "\(days) 天"
+        return String(localized: "\(days) 天")
     }
 
     /// 60 天以内正常，60–120 天偏慢，再长就是积压
@@ -426,7 +426,7 @@ struct DashboardContent: View {
     private func supplyLabel(_ row: InventoryStatistics.ModelVelocity) -> String {
         if row.inStockCount == 0 { return "已售罄" }
         guard let days = row.daysOfSupply else { return "无成交" }
-        return days >= 365 ? "一年以上" : "\(days) 天"
+        return days >= 365 ? "一年以上" : String(localized: "\(days) 天")
     }
 
     private func supplyColor(_ row: InventoryStatistics.ModelVelocity) -> Color {
@@ -453,21 +453,21 @@ struct DashboardContent: View {
                 ) {
                     ForEach(stats.lowMarginItems.prefix(3)) { item in
                         AlertCard(
-                            title: "低于成本 · \(item.modelName)",
+                            title: String(localized: "低于成本 · \(item.modelName)"),
                             message: "标价 \(item.listPrice.mmk) 低于总进价 \(item.landedCost.mmk)，每台亏 \((item.landedCost - item.listPrice).mmk)，建议调价",
                             tone: .danger
                         )
                     }
                     ForEach(stats.weakBatteryItems.prefix(3)) { item in
                         AlertCard(
-                            title: "电池偏弱 · \(item.modelName)",
+                            title: String(localized: "电池偏弱 · \(item.modelName)"),
                             message: "健康 \(item.batteryHealthText) · 循环 \(item.batteryCyclesText)，建议检测或作为议价点说明",
                             tone: .warn
                         )
                     }
                     ForEach(stats.overdueItems.prefix(3)) { item in
                         AlertCard(
-                            title: "库存超期 · \(item.modelName)",
+                            title: String(localized: "库存超期 · \(item.modelName)"),
                             message: "在库 \(item.ageInDays) 天，占用成本 \(item.landedCost.mmk)，建议促销或调价",
                             tone: .warn
                         )

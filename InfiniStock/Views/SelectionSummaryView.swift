@@ -38,21 +38,21 @@ struct SelectionSummaryView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            PanelHeader(title: "已选 \(items.count) 台", subtitle: "多选汇总")
+            PanelHeader(title: String(localized: "已选 \(items.count) 台"), subtitle: "多选汇总")
 
             ScrollView {
                 VStack(spacing: Token.Space.m) {
                     totals
                     PanelSection(title: "构成") {
                         MetricGrid {
-                            MetricCell(label: "平均库龄", value: "\(averageAge) 天")
+                            MetricCell(label: "平均库龄", value: String(localized: "\(averageAge) 天"))
                             MetricCell(
                                 label: "超期",
-                                value: overdueCount > 0 ? "\(overdueCount) 台" : "无",
+                                value: overdueCount > 0 ? String(localized: "\(overdueCount) 台") : "无",
                                 tone: overdueCount > 0 ? .danger : nil
                             )
-                            MetricCell(label: "可出库", value: "\(sellableCount) 台")
-                            MetricCell(label: "已售 / 锁定", value: "\(items.count - sellableCount) 台")
+                            MetricCell(label: "可出库", value: String(localized: "\(sellableCount) 台"))
+                            MetricCell(label: "已售 / 锁定", value: String(localized: "\(items.count - sellableCount) 台"))
                         }
                     }
                     roster
@@ -83,7 +83,7 @@ struct SelectionSummaryView: View {
                     Text(profit.signedMMK)
                         .font(.system(size: 15, weight: .semibold).monospacedDigit())
                         .foregroundStyle(profit < 0 ? Token.Status.danger : Token.Status.ok)
-                    Text("毛利率 \(marginText)")
+                    Text(String(localized: "毛利率 \(marginText)"))
                         .font(.system(size: 10))
                         .foregroundStyle(Token.Ink.tertiary)
                 }
@@ -131,7 +131,7 @@ struct SelectionSummaryView: View {
                 }
                 if items.count > 8 {
                     Hairline()
-                    Text("还有 \(items.count - 8) 台未列出")
+                    Text(String(localized: "还有 \(items.count - 8) 台未列出"))
                         .font(Token.Typography.caption)
                         .foregroundStyle(Token.Ink.tertiary)
                         .frame(maxWidth: .infinity, alignment: .leading)

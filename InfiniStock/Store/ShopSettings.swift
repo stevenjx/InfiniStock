@@ -29,6 +29,8 @@ struct ShopSettings: Codable, Equatable {
     var backupRetention: Int = 14
     /// 界面外观。存字符串而不是枚举，解码时无法识别的值回落「跟随系统」
     var appearance: String = AppearancePreference.auto.rawValue
+    /// 界面语言。同上，无法识别的值回落「跟随系统」
+    var language: String = AppLanguage.system.rawValue
 
     private static let key = "infinistock.shopSettings"
 
@@ -44,7 +46,8 @@ struct ShopSettings: Codable, Equatable {
         autoBackupEnabled: Bool = true,
         backupPromptDismissed: Bool = false,
         backupRetention: Int = 14,
-        appearance: String = AppearancePreference.auto.rawValue
+        appearance: String = AppearancePreference.auto.rawValue,
+        language: String = AppLanguage.system.rawValue
     ) {
         self.shopName = shopName
         self.phone = phone
@@ -58,6 +61,7 @@ struct ShopSettings: Codable, Equatable {
         self.backupPromptDismissed = backupPromptDismissed
         self.backupRetention = backupRetention
         self.appearance = appearance
+        self.language = language
     }
 
     init(from decoder: any Decoder) throws {
@@ -76,6 +80,8 @@ struct ShopSettings: Codable, Equatable {
         backupRetention = try container.decodeIfPresent(Int.self, forKey: .backupRetention) ?? 14
         appearance = try container.decodeIfPresent(String.self, forKey: .appearance)
             ?? AppearancePreference.auto.rawValue
+        language = try container.decodeIfPresent(String.self, forKey: .language)
+            ?? AppLanguage.system.rawValue
     }
 
     var paymentMethod: PaymentMethod {
@@ -84,6 +90,10 @@ struct ShopSettings: Codable, Equatable {
 
     var appearancePreference: AppearancePreference {
         AppearancePreference(rawValue: appearance) ?? .auto
+    }
+
+    var languagePreference: AppLanguage {
+        AppLanguage(rawValue: language) ?? .system
     }
 
     static func load() -> ShopSettings {

@@ -17,7 +17,7 @@ struct RecentItemsPanel: View {
                             .font(Token.Typography.cardTitle)
                             .foregroundStyle(Token.Ink.primary)
                         Spacer()
-                        Text("\(items.count) 台")
+                        Text(String(localized: "\(items.count) 台"))
                             .font(Token.Typography.caption)
                             .foregroundStyle(Token.Ink.tertiary)
                     }
@@ -73,7 +73,7 @@ private struct RecentRow: View {
                     .font(Token.Typography.money)
                     .foregroundStyle(Token.Ink.primary)
                 Badge(
-                    text: "\(item.ageInDays) 天",
+                    text: String(localized: "\(item.ageInDays) 天"),
                     tone: item.isOverdue ? .danger : .neutral,
                     style: item.isOverdue ? .filled : .outline
                 )

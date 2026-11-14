@@ -18,14 +18,14 @@ enum InventoryError: LocalizedError {
         switch self {
         case .emptySerial: "序列号不能为空"
         case .emptyModel: "型号不能为空"
-        case .duplicateSerial(let serial): "序列号 \(serial) 已入库，本次录入被拦截"
-        case .notInStock(let serial): "序列号 \(serial) 不在库，无法出库"
+        case .duplicateSerial(let serial): String(localized: "序列号 \(serial) 已入库，本次录入被拦截")
+        case .notInStock(let serial): String(localized: "序列号 \(serial) 不在库，无法出库")
         case .emptySelection: "请先选择要出库的机器"
-        case .invalidAmount(let field): "\(field) 不是有效数字"
+        case .invalidAmount(let field): String(localized: "\(field) 不是有效数字")
         case .invalidRate: "汇率必须大于 0（1 元人民币 = N 缅币）"
         case .batteryOutOfRange: "电池健康需在 0–100 之间，循环次数不能为负数"
         case .invalidDiscount: "折扣与抹零不能为负数"
-        case .discountTooLarge(let subtotal): "折扣加抹零超过商品小计 \(subtotal.mmk)"
+        case .discountTooLarge(let subtotal): String(localized: "折扣加抹零超过商品小计 \(subtotal.mmk)")
         case .cannotDelete(let serial, let reason): "序列号 \(serial) 无法删除：\(reason)"
         }
     }
@@ -170,7 +170,7 @@ enum InventoryService {
         // 0 元成交会让"台数 +1、销售额 +0"，统计口径直接歪掉。
         // 赠送要走折扣（可追溯），不能靠把单价填成 0。
         if let bad = lines.first(where: { $0.price <= 0 }) {
-            throw InventoryError.invalidAmount("\(bad.item.serialNumber) 的成交价（必须大于 0）")
+            throw InventoryError.invalidAmount(String(localized: "\(bad.item.serialNumber) 的成交价（必须大于 0）"))
         }
         guard discount >= 0, rounding >= 0 else { throw InventoryError.invalidDiscount }
         if let paid, paid < 0 { throw InventoryError.invalidAmount("实收金额") }

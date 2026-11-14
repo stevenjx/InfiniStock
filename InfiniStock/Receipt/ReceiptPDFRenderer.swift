@@ -40,7 +40,7 @@ enum ReceiptPDFRenderer {
             text("SALES RECEIPT", x: margin, topY: y + 30, font: .systemFont(ofSize: 8), color: .gray, in: context)
         }
 
-        text("单号 \(document.number)", x: right, topY: y + 4, font: .systemFont(ofSize: 10), color: .black, align: .right, in: context)
+        text(String(localized: "单号 \(document.number)"), x: right, topY: y + 4, font: .systemFont(ofSize: 10), color: .black, align: .right, in: context)
         text(dateText(document.issuedAt), x: right, topY: y + 20, font: .systemFont(ofSize: 10), color: .gray, align: .right, in: context)
 
         y += 68
@@ -98,7 +98,7 @@ enum ReceiptPDFRenderer {
 
         // 小计 → 折扣 → 抹零 → 应收
         var amountRows: [(String, String)] = [
-            ("商品小计（\(document.lines.count) 台）", document.subtotal.mmk)
+            (String(localized: "商品小计（\(document.lines.count) 台）"), document.subtotal.mmk)
         ]
         if document.discount > 0 {
             amountRows.append(("折扣", "−" + document.discount.mmk))
@@ -118,7 +118,7 @@ enum ReceiptPDFRenderer {
         text("应收合计", x: right - 200, topY: y, font: .boldSystemFont(ofSize: 11), color: .black, in: context)
         text(document.total.mmk, x: right - 6, topY: y - 2, font: .boldSystemFont(ofSize: 14), color: .black, align: .right, in: context)
         y += 26
-        text("大写：\(ChineseAmount.uppercase(document.total))", x: margin + 6, topY: y, font: .systemFont(ofSize: 10), color: .darkGray, in: context)
+        text(String(localized: "大写：\(ChineseAmount.uppercase(document.total))"), x: margin + 6, topY: y, font: .systemFont(ofSize: 10), color: .darkGray, in: context)
 
         if document.returnedCount > 0 {
             y += 16
@@ -133,7 +133,7 @@ enum ReceiptPDFRenderer {
         let noteFont = NSFont.systemFont(ofSize: 8.5)
         var notes = [
             "1. 本凭证为交易记录，非增值税发票，不可作为税务抵扣凭证。",
-            "2. 请当面验机；非人为故障自签收之日起 \(document.warrantyDays) 日内协商处理，人为损坏不在范围内。",
+            String(localized: "2. 请当面验机；非人为故障自签收之日起 \(document.warrantyDays) 日内协商处理，人为损坏不在范围内。"),
             "3. 序列号与成交价以本凭证为准，涂改无效。",
         ]
         if !document.footnote.isEmpty {
@@ -151,7 +151,7 @@ enum ReceiptPDFRenderer {
         text("日期：____________________", x: margin + 280, topY: y, font: .systemFont(ofSize: 9), color: .gray, in: context)
 
         // 页脚
-        text("由 InfiniStock 生成 · \(dateText(Date()))", x: right, topY: pageSize.height - 44,
+        text(String(localized: "由 InfiniStock 生成 · \(dateText(Date()))"), x: right, topY: pageSize.height - 44,
              font: .systemFont(ofSize: 8.5), color: .gray, align: .right, in: context)
     }
 

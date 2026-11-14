@@ -86,7 +86,7 @@ struct ReportView: View {
                 value: report.profit.signedMMK,
                 systemImage: "chart.line.uptrend.xyaxis",
                 tone: report.profit < 0 ? .danger : .ok,
-                delta: report.marginRate.map { "毛利率 \(Money.text($0))%" } ?? "期间无成交",
+                delta: report.marginRate.map { String(localized: "毛利率 \(Money.text($0))%") } ?? "期间无成交",
                 deltaTone: report.profit < 0 ? .danger : .ok
             )
             StatCard(
@@ -94,7 +94,7 @@ struct ReportView: View {
                 value: report.collected.mmk,
                 systemImage: "banknote.fill",
                 tone: .neutral,
-                delta: report.outstanding > 0 ? "还欠 \(report.outstanding.mmk)" : "全部收讫",
+                delta: report.outstanding > 0 ? String(localized: "还欠 \(report.outstanding.mmk)") : "全部收讫",
                 deltaTone: report.outstanding > 0 ? .warn : .ok
             )
             StatCard(
@@ -102,7 +102,7 @@ struct ReportView: View {
                 value: report.averageOrder.mmk,
                 systemImage: "person.crop.circle",
                 tone: .neutral,
-                delta: "每台 \(report.averageTicket.mmk)"
+                delta: String(localized: "每台 \(report.averageTicket.mmk)")
             )
         }
     }
@@ -169,7 +169,7 @@ struct ReportView: View {
     }
 
     private var modelCard: some View {
-        SectionCard(title: report.byModel.isEmpty ? "按型号" : "按型号 · \(report.byModel.count) 款") {
+        SectionCard(title: report.byModel.isEmpty ? "按型号" : String(localized: "按型号 · \(report.byModel.count) 款")) {
             if report.byModel.isEmpty {
                 EmptyState(title: "没有成交", message: "卖出机器后这里按毛利排序", systemImage: "laptopcomputer")
                     .frame(height: 120)
@@ -224,7 +224,7 @@ struct ReportView: View {
                                 .font(Token.Typography.body)
                                 .foregroundStyle(Token.Ink.primary)
                             Spacer(minLength: Token.Space.s)
-                            Text("\(slice.count) 笔")
+                            Text(String(localized: "\(slice.count) 笔"))
                                 .font(Token.Typography.caption)
                                 .foregroundStyle(Token.Ink.tertiary)
                             Text(slice.amount.mmk)
@@ -291,7 +291,7 @@ struct ReportView: View {
 
     private func exportCSV() {
         let panel = NSSavePanel()
-        panel.nameFieldStringValue = "销售明细-\(range.rawValue).csv"
+        panel.nameFieldStringValue = String(localized: "销售明细-\(range.rawValue).csv")
         panel.canCreateDirectories = true
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
@@ -300,7 +300,7 @@ struct ReportView: View {
             try text.data(using: .utf8)?.write(to: url)
             exportMessage = "已导出 \(report.machineCount) 台到 \(url.lastPathComponent)"
         } catch {
-            exportMessage = "导出失败：\(error.localizedDescription)"
+            exportMessage = String(localized: "导出失败：\(error.localizedDescription)")
         }
         Task {
             try? await Task.sleep(for: .seconds(2))

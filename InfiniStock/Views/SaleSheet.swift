@@ -123,9 +123,9 @@ struct SaleSheet: View {
         VStack(spacing: 0) {
             PanelHeader(
                 title: items.count == 1 ? "出库销售" : "批量出库",
-                subtitle: items.count == 1 ? items[0].serialNumber : "\(items.count) 台"
+                subtitle: items.count == 1 ? items[0].serialNumber : String(localized: "\(items.count) 台")
             ) {
-                Text("应收 \(payable.mmk)")
+                Text(String(localized: "应收 \(payable.mmk)"))
                     .font(Token.Typography.money.weight(.semibold))
                     .foregroundStyle(Token.Ink.primary)
             }
@@ -134,7 +134,7 @@ struct SaleSheet: View {
                 VStack(spacing: Token.Space.m) {
                     if profit < 0 && !hasInvalidPrice {
                         AlertCard(
-                            title: "这笔会亏 \((-profit).mmk)",
+                            title: String(localized: "这笔会亏 \((-profit).mmk)"),
                             message: "实收低于这 \(items.count) 台的总进价 \(landedTotal.mmk)，确认前请复核成交价与折扣。",
                             tone: .danger
                         )
@@ -174,7 +174,7 @@ struct SaleSheet: View {
                     }
                     KeyValueRow(label: "毛利", value: order.profit.signedMMK,
                                 valueTone: order.profit < 0 ? .danger : .ok)
-                    KeyValueRow(label: "台数", value: "\(order.itemList.count) 台")
+                    KeyValueRow(label: "台数", value: String(localized: "\(order.itemList.count) 台"))
                     if !order.customerName.isEmpty {
                         KeyValueRow(label: "客户", value: order.customerName)
                     }
@@ -199,7 +199,7 @@ struct SaleSheet: View {
     }
 
     private var machinesCard: some View {
-        SectionCard(title: items.count == 1 ? "机器" : "待出库 \(items.count) 台") {
+        SectionCard(title: items.count == 1 ? "机器" : String(localized: "待出库 \(items.count) 台")) {
             VStack(spacing: 0) {
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                     if index > 0 { Hairline() }
@@ -226,7 +226,7 @@ struct SaleSheet: View {
                         .foregroundStyle(Token.Ink.tertiary)
                 }
                 Spacer(minLength: Token.Space.s)
-                Text("成本 \(item.landedCost.mmk)")
+                Text(String(localized: "成本 \(item.landedCost.mmk)"))
                     .font(Token.Typography.caption)
                     .foregroundStyle(Token.Ink.tertiary)
             }
@@ -356,7 +356,7 @@ struct SaleSheet: View {
                     }
                     Spacer(minLength: 0)
                     if outstanding > 0 {
-                        Text("欠 \(outstanding.mmk)")
+                        Text(String(localized: "欠 \(outstanding.mmk)"))
                             .font(Token.Typography.caption.weight(.medium))
                             .foregroundStyle(Token.Status.warn)
                     } else {
@@ -372,12 +372,12 @@ struct SaleSheet: View {
     private var footer: some View {
         PanelFooter {
             HStack(spacing: 6) {
-                Text("小计 \(subtotal.mmk)")
+                Text(String(localized: "小计 \(subtotal.mmk)"))
                     .font(Token.Typography.caption)
                     .foregroundStyle(Token.Ink.tertiary)
                 Text("·")
                     .foregroundStyle(Token.Ink.tertiary)
-                Text("应收 \(payable.mmk)")
+                Text(String(localized: "应收 \(payable.mmk)"))
                     .font(Token.Typography.caption.weight(.semibold))
                     .foregroundStyle(Token.Ink.primary)
                 Text("·")
@@ -388,7 +388,7 @@ struct SaleSheet: View {
                         .font(Token.Typography.caption)
                         .foregroundStyle(Token.Status.warn)
                 } else {
-                    Text("毛利 \(profit.signedMMK)")
+                    Text(String(localized: "毛利 \(profit.signedMMK)"))
                         .font(Token.Typography.caption)
                         .foregroundStyle(profit < 0 ? Token.Status.danger : Token.Status.ok)
                     if let marginRate {

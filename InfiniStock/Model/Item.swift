@@ -159,6 +159,6 @@ final class Item {
     }
 
     var batteryCyclesText: String {
-        batteryCycles > 0 ? "\(batteryCycles) 次" : "—"
+        batteryCycles > 0 ? String(localized: "\(batteryCycles) 次") : "—"
     }
 }

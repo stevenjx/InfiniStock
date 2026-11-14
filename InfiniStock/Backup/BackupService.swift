@@ -10,11 +10,11 @@ enum BackupError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .unsupportedVersion(let version):
-            "备份格式版本 \(version) 高于当前 App，请先升级"
+            String(localized: "备份格式版本 \(version) 高于当前 App，请先升级")
         case .legacyVersion(let version):
-            "这份备份是旧格式（v\(version)），金额口径与当前版本不同，无法直接恢复。请用当前版本重新导出备份。"
+            String(localized: "这份备份是旧格式（v\(version)），金额口径与当前版本不同，无法直接恢复。请用当前版本重新导出备份。")
         case .corruptFile(let detail):
-            "备份文件无法解析：\(detail)"
+            String(localized: "备份文件无法解析：\(detail)")
         case .emptySnapshot:
             "备份文件不含任何机器记录"
         }

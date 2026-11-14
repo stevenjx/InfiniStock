@@ -35,10 +35,10 @@ struct ImportSheet: View {
 
                 if let preview {
                     Section("预检结果") {
-                        LabeledContent("可导入", value: "\(preview.rows.count) 台")
-                        LabeledContent("有错误", value: "\(preview.issues.count) 行")
+                        LabeledContent("可导入", value: String(localized: "\(preview.rows.count) 台"))
+                        LabeledContent("有错误", value: String(localized: "\(preview.issues.count) 行"))
                         if !preview.issues.isEmpty {
-                            LabeledContent("总数据行", value: "\(preview.totalLines) 行")
+                            LabeledContent("总数据行", value: String(localized: "\(preview.totalLines) 行"))
                         }
                     }
 
@@ -46,7 +46,7 @@ struct ImportSheet: View {
                         Section("错误明细") {
                             ForEach(preview.issues.prefix(50)) { issue in
                                 HStack(alignment: .top, spacing: 8) {
-                                    Text("第 \(issue.line) 行")
+                                    Text(String(localized: "第 \(issue.line) 行"))
                                         .font(.caption)
                                         .monospacedDigit()
                                         .foregroundStyle(Token.Status.danger)
@@ -56,7 +56,7 @@ struct ImportSheet: View {
                                 }
                             }
                             if preview.issues.count > 50 {
-                                Text("另有 \(preview.issues.count - 50) 条未显示")
+                                Text(String(localized: "另有 \(preview.issues.count - 50) 条未显示"))
                                     .font(.caption)
                                     .foregroundStyle(Token.Ink.secondary)
                             }
@@ -84,7 +84,7 @@ struct ImportSheet: View {
                         Button {
                             commit(preview)
                         } label: {
-                            Label("导入 \(preview.rows.count) 台", systemImage: "tray.and.arrow.down")
+                            Label(String(localized: "导入 \(preview.rows.count) 台"), systemImage: "tray.and.arrow.down")
                         }
                         .disabled(preview.rows.isEmpty)
                         if let resultMessage {
@@ -137,7 +137,7 @@ struct ImportSheet: View {
     private func commit(_ preview: CSVImporter.Preview) {
         do {
             let count = try CSVImporter.commit(preview, batch: selectedBatch, in: modelContext)
-            resultMessage = "已导入 \(count) 台"
+            resultMessage = String(localized: "已导入 \(count) 台")
             // 重新预检：已入库的序列号会自动变成「库中已存在」，避免重复点击
             self.preview = nil
             fileName = ""

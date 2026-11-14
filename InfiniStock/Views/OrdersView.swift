@@ -25,7 +25,7 @@ struct OrdersKpiStrip: View {
 
     private var marginText: String {
         guard revenue > 0 else { return "暂无成交" }
-        return "毛利率 \((profit / revenue * 100).rounded(1))%"
+        return String(localized: "毛利率 \((profit / revenue * 100).rounded(1))%")
     }
 
     var body: some View {
@@ -35,7 +35,7 @@ struct OrdersKpiStrip: View {
                 value: revenue.mmk,
                 systemImage: "cart.fill",
                 tone: .brand,
-                delta: "\(todayOrders.count) 张单"
+                delta: String(localized: "\(todayOrders.count) 张单")
             )
             StatCard(
                 title: "今日毛利",
@@ -47,10 +47,10 @@ struct OrdersKpiStrip: View {
             )
             StatCard(
                 title: "今日已售",
-                value: "\(soldCount) 台",
+                value: String(localized: "\(soldCount) 台"),
                 systemImage: "shippingbox.fill",
                 tone: .neutral,
-                delta: "在库 \(items.filter { $0.status == .inStock }.count) 台"
+                delta: String(localized: "在库 \(items.filter { $0.status == .inStock }.count) 台")
             )
         }
     }
@@ -106,7 +106,7 @@ struct OrdersView: View {
                     CellTitle(
                         title: order.number,
                         subtitle: (order.customerName.isEmpty ? "散客" : order.customerName)
-                            + " · \(order.itemList.count) 台"
+                            + String(localized: " · \(order.itemList.count) 台")
                     )
                     .padding(.vertical, 8)
                 }
@@ -169,7 +169,7 @@ struct OrdersView: View {
     }
 
     private var footerLeading: String {
-        "共 \(filtered.count) 张"
+        String(localized: "共 \(filtered.count) 张")
     }
 
     private var footerTrailing: String? {

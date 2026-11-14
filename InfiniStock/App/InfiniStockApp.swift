@@ -17,9 +17,13 @@ struct InfiniStockApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView(cloudSyncEnabled: cloudSyncEnabled)
-                .environment(appState)
-                .frame(minWidth: 960, minHeight: 620)
+            // 语言在外壳这一层应用：切一次，整个窗口树跟着重建，
+            // 不必让每个视图各自监听语言变化。
+            LocalizedRoot(language: AppLanguage.current) {
+                RootView(cloudSyncEnabled: cloudSyncEnabled)
+                    .environment(appState)
+                    .frame(minWidth: 960, minHeight: 620)
+            }
         }
         .defaultSize(width: 1240, height: 820)
         .windowResizability(.contentMinSize)

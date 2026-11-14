@@ -91,13 +91,13 @@ enum OrderError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .alreadyVoided(let number): "单据 \(number) 已作废"
-        case .noItems(let number): "单据 \(number) 没有关联机器，无法操作"
-        case .sequenceExhausted(let year): "\(year) 年单号已用尽（9999），请检查数据"
+        case .alreadyVoided(let number): String(localized: "单据 \(number) 已作废")
+        case .noItems(let number): String(localized: "单据 \(number) 没有关联机器，无法操作")
+        case .sequenceExhausted(let year): String(localized: "\(year) 年单号已用尽（9999），请检查数据")
         case .notInOrder(let serial, let number): "序列号 \(serial) 不属于单据 \(number)"
         case .invalidPayment: "收款金额必须大于 0"
-        case .nothingToCollect(let number): "单据 \(number) 没有未收金额"
-        case .overCollected(let due): "收款金额超过未收的 \(due.mmk)"
+        case .nothingToCollect(let number): String(localized: "单据 \(number) 没有未收金额")
+        case .overCollected(let due): String(localized: "收款金额超过未收的 \(due.mmk)")
         }
     }
 }

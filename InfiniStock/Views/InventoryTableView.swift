@@ -42,10 +42,10 @@ struct StockKpiStrip: View {
         HStack(spacing: Token.Space.m) {
             StatCard(
                 title: statusFilter?.label ?? "全部机器",
-                value: "\(pool.count) 台",
+                value: String(localized: "\(pool.count) 台"),
                 systemImage: "shippingbox.fill",
                 tone: .brand,
-                delta: unpricedCount > 0 ? "\(unpricedCount) 台未标价" : "全部已定价",
+                delta: unpricedCount > 0 ? String(localized: "\(unpricedCount) 台未标价") : "全部已定价",
                 deltaTone: unpricedCount > 0 ? .warn : .ok
             )
             StatCard(
@@ -53,7 +53,7 @@ struct StockKpiStrip: View {
                 value: cost.mmk,
                 systemImage: "banknote.fill",
                 tone: .warn,
-                delta: "标价合计 \(listed.mmk)"
+                delta: String(localized: "标价合计 \(listed.mmk)")
             )
             StatCard(
                 title: "预计毛利",
@@ -61,13 +61,13 @@ struct StockKpiStrip: View {
                 systemImage: "chart.line.uptrend.xyaxis",
                 tone: listed - cost < 0 ? .danger : .ok,
                 delta: listed > 0
-                    ? "毛利率 \(Money.text(((listed - cost) / listed * 100).rounded(1)))%"
+                    ? String(localized: "毛利率 \(Money.text(((listed - cost) / listed * 100).rounded(1)))%")
                     : "还没有标价",
                 deltaTone: listed - cost < 0 ? .danger : .ok
             )
             StatCard(
                 title: "平均库龄",
-                value: "\(averageAge) 天",
+                value: String(localized: "\(averageAge) 天"),
                 systemImage: "clock",
                 tone: overdue.isEmpty ? .neutral : .danger,
                 delta: overdue.isEmpty ? "无呆滞" : "\(overdue.count) 台超 \(Item.overdueDays) 天",
@@ -211,9 +211,9 @@ struct InventoryTableView: View {
 
             TableColumn("库龄") { item in
                 if item.isOverdue {
-                    Badge(text: "\(item.ageInDays) 天", tone: .danger, style: .filled)
+                    Badge(text: String(localized: "\(item.ageInDays) 天"), tone: .danger, style: .filled)
                 } else {
-                    Text("\(item.ageInDays) 天")
+                    Text(String(localized: "\(item.ageInDays) 天"))
                         .font(Token.Typography.money)
                         .foregroundStyle(Token.Ink.secondary)
                         .frame(maxWidth: .infinity, alignment: .trailing)
@@ -256,7 +256,7 @@ struct InventoryTableView: View {
             }
             if !selected.isEmpty {
                 let chosen = Array(selected)
-                Button(chosen.count == 1 ? "出库销售…" : "批量出库 \(chosen.count) 台…") {
+                Button(chosen.count == 1 ? "出库销售…" : String(localized: "批量出库 \(chosen.count) 台…")) {
                     onSell(chosen)
                 }
                 Divider()
@@ -323,7 +323,7 @@ struct InventoryTableView: View {
     private var footerLeading: String {
         let keyword = searchText.trimmingCharacters(in: .whitespaces)
         if keyword.isEmpty {
-            return "共 \(rows.count) 台"
+            return String(localized: "共 \(rows.count) 台")
         }
         return "共 \(rows.count) 台 · 筛选「\(keyword)」"
     }
@@ -340,7 +340,7 @@ struct InventoryTableView: View {
                 .font(Token.Typography.money)
                 .foregroundStyle(item.isBatteryWeak ? Token.Status.warn : Token.Ink.primary)
             if item.batteryCycles > 0 {
-                Text("\(item.batteryCycles) 次")
+                Text(String(localized: "\(item.batteryCycles) 次"))
                     .font(Token.Typography.caption)
                     .foregroundStyle(Token.Ink.tertiary)
             }
@@ -426,10 +426,10 @@ private struct SelectionActionBar: View {
 
     var body: some View {
         HStack(spacing: Token.Space.s) {
-            Text("已选中 \(items.count) 台")
+            Text(String(localized: "已选中 \(items.count) 台"))
                 .font(Token.Typography.caption.weight(.medium))
                 .foregroundStyle(Token.Ink.primary)
-            Text("· 成本 \(cost.mmk)")
+            Text(String(localized: "· 成本 \(cost.mmk)"))
                 .font(Token.Typography.caption)
                 .foregroundStyle(Token.Ink.secondary)
                 .monospacedDigit()

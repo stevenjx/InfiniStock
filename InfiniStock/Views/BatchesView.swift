@@ -25,24 +25,24 @@ struct BatchesKpiStrip: View {
         HStack(spacing: Token.Space.m) {
             StatCard(
                 title: "本月批次",
-                value: "\(monthBatches.count) 批",
+                value: String(localized: "\(monthBatches.count) 批"),
                 systemImage: "shippingbox.and.arrow.backward",
                 tone: .brand,
-                delta: "累计 \(batches.count) 批"
+                delta: String(localized: "累计 \(batches.count) 批")
             )
             StatCard(
                 title: "总进价合计",
                 value: totalCost.mmk,
                 systemImage: "banknote.fill",
                 tone: .warn,
-                delta: "\(machineCount) 台"
+                delta: String(localized: "\(machineCount) 台")
             )
             StatCard(
                 title: "运费合计",
                 value: totalShipping.mmk,
                 systemImage: "truck.box.fill",
                 tone: .neutral,
-                delta: machineCount > 0 ? "均摊每台 \((totalShipping / Decimal(machineCount)).rounded(0).mmk)" : "暂无机器"
+                delta: machineCount > 0 ? String(localized: "均摊每台 \((totalShipping / Decimal(machineCount)).rounded(0).mmk)") : "暂无机器"
             )
         }
     }
@@ -74,7 +74,7 @@ struct BatchesView: View {
 
             table
 
-            TableFooter(leading: "共 \(filtered.count) 批", trailing: footerTrailing)
+            TableFooter(leading: String(localized: "共 \(filtered.count) 批"), trailing: footerTrailing)
         }
         .sheet(isPresented: $showingNewBatch) {
             BatchSheet()
@@ -192,7 +192,7 @@ struct BatchDetailView: View {
                     }
 
                     PanelSection(title: "成本口径") {
-                        KeyValueRow(label: "锁定汇率", value: "1 元 = \(Money.text(batch.exchangeRate)) 缅币")
+                        KeyValueRow(label: "锁定汇率", value: String(localized: "1 元 = \(Money.text(batch.exchangeRate)) 缅币"))
                         KeyValueRow(label: "总运费", value: batch.totalShipping.mmk)
                         KeyValueRow(label: "已分摊", value: batch.allocatedShipping.mmk)
                         KeyValueRow(
@@ -206,7 +206,7 @@ struct BatchDetailView: View {
                         )
                     }
 
-                    PanelSection(title: "机器", trailing: "\(items.count) 台") {
+                    PanelSection(title: "机器", trailing: String(localized: "\(items.count) 台")) {
                         if items.isEmpty {
                             Text("这一批还没有机器")
                                 .font(Token.Typography.caption)

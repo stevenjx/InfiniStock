@@ -155,7 +155,7 @@ struct RootView: View {
             if !isPresented { itemSelection.removeAll() }
         }
         .confirmationDialog(
-            pendingDelete.count == 1 ? "删除 1 台机器？" : "删除 \(pendingDelete.count) 台机器？",
+            pendingDelete.count == 1 ? "删除 1 台机器？" : String(localized: "删除 \(pendingDelete.count) 台机器？"),
             isPresented: Binding(
                 get: { !pendingDelete.isEmpty },
                 set: { if !$0 { pendingDelete = [] } }
@@ -618,7 +618,7 @@ struct RootView: View {
         let targets = pendingDelete
         pendingDelete = []
 
-        let passed = await BiometricGate.authenticate(reason: "删除 \(targets.count) 台机器")
+        let passed = await BiometricGate.authenticate(reason: String(localized: "删除 \(targets.count) 台机器"))
         guard passed else {
             deleteError = "身份验证未通过，删除已取消"
             return
@@ -634,7 +634,11 @@ struct RootView: View {
         }
         itemSelection.subtract(Set(targets.map(\.id)))
         if !failures.isEmpty {
-            deleteError = "以下机器未删除：\(failures.joined(separator: "、"))"
+            // 嵌套引号的插值不交给 catalog：分隔符本身是标点，翻译也只改前缀
+            deleteError = String(
+                format: String(localized: "以下机器未删除：%@"),
+                failures.joined(separator: "、")
+            )
         }
     }
 }

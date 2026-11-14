@@ -103,7 +103,7 @@ enum CSVImporter {
                 continue
             }
             if let firstLine = seenSerials[serial] {
-                issues.append(Issue(line: line, field: "序列号", reason: "与第 \(firstLine) 行重复"))
+                issues.append(Issue(line: line, field: "序列号", reason: String(localized: "与第 \(firstLine) 行重复")))
                 continue
             }
             if existingSerials.contains(serial) {
@@ -337,7 +337,12 @@ enum CSVImporter {
         if let matched = ItemCondition(rawValue: trimmed) { return matched }
         issues.append(Issue(
             line: line, field: "成色",
-            reason: "无法识别「\(trimmed)」，可选：\(ItemCondition.allCases.map(\.rawValue).joined(separator: " / "))"
+            // 内层 join 的引号进不了 String Catalog 的键，拆成两次格式化
+            reason: String(
+                format: String(localized: "无法识别「%@」，可选：%@"),
+                trimmed,
+                ItemCondition.allCases.map(\.rawValue).joined(separator: " / ")
+            )
         ))
         return nil
     }

@@ -57,7 +57,7 @@ struct ItemEditSheet: View {
                 }
             }
             .formStyle(.grouped)
-            .navigationTitle("编辑 \(item.modelName)")
+            .navigationTitle(String(localized: "编辑 \(item.modelName)"))
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif

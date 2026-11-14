@@ -32,7 +32,7 @@ enum AppStore {
             let url = support.appendingPathComponent("debug.store")
             let config = ModelConfiguration(schema: schema, url: url, cloudKitDatabase: .none)
             guard let container = try? ModelContainer(for: schema, configurations: [config]) else {
-                fatalError("调试库初始化失败：\(url.path)")
+                fatalError(String(localized: "调试库初始化失败：\(url.path)"))
             }
             return AppStoreBundle(container: container, cloudSyncEnabled: false, isDebugStore: true)
         }

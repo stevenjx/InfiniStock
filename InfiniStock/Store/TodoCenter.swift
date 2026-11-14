@@ -118,7 +118,7 @@ enum TodoCenter {
                 add(.unpriced, "还没有标价，无法出库", item.landedCost)
             } else if item.listPrice < item.landedCost {
                 add(.negativeMargin,
-                    "标价比总进价低 \(Money.kyat(item.landedCost - item.listPrice))",
+                    String(localized: "标价比总进价低 \(Money.kyat(item.landedCost - item.listPrice))"),
                     item.landedCost - item.listPrice)
             }
 
@@ -136,7 +136,7 @@ enum TodoCenter {
             }
 
             if item.ageInDays >= Item.overdueDays {
-                add(.aged, "入库 \(item.ageInDays) 天仍未售出", item.landedCost)
+                add(.aged, String(localized: "入库 \(item.ageInDays) 天仍未售出"), item.landedCost)
             }
         }
 
@@ -147,7 +147,7 @@ enum TodoCenter {
                 kind: .pendingAllocation,
                 title: batch.name.isEmpty ? "未命名批次" : batch.name,
                 subtitle: batch.supplier.isEmpty ? "未填供应商" : batch.supplier,
-                reason: "\(Money.kyat(unallocated)) 运费还没摊到机器上",
+                reason: String(localized: "\(Money.kyat(unallocated)) 运费还没摊到机器上"),
                 amount: unallocated,
                 item: nil,
                 batch: batch,
@@ -211,8 +211,8 @@ enum TodoCenter {
                 subtitle = "从未备份"
                 reason = "整店的账只有一份，选个目录每天自动存"
             case .stale(let days):
-                subtitle = "上次备份 \(days) 天前"
-                reason = "超过 \(BackupService.staleDays) 天没写备份，别再拖了"
+                subtitle = String(localized: "上次备份 \(days) 天前")
+                reason = String(localized: "已超过 \(BackupService.staleDays) 天未写备份")
             }
             entries.append(TodoEntry(
                 id: TodoEntry.Key(kind: .backupStale, target: nil),
@@ -242,16 +242,16 @@ enum TodoCenter {
     static func batteryReason(_ item: Item) -> String {
         var parts: [String] = []
         if item.batteryHealth > 0 {
-            parts.append("健康 \(item.batteryHealth)%")
+            parts.append(String(localized: "健康 \(item.batteryHealth)%"))
         }
         if item.batteryCycles > 0 {
-            parts.append("\(item.batteryCycles) 次循环")
+            parts.append(String(localized: "\(item.batteryCycles) 次循环"))
         }
         let summary = parts.isEmpty ? "电池数据缺失" : parts.joined(separator: " · ")
         if item.batteryHealth > 0 && item.batteryHealth < Item.weakHealth {
             return "\(summary)，低于 \(Item.weakHealth)%"
         }
-        return "\(summary)，循环偏高"
+        return String(localized: "\(summary)，循环偏高")
     }
 
     /// 涉及金额合计。同一台机器可能同时有多条待办，按机器去重，

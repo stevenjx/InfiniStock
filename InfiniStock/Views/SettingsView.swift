@@ -63,6 +63,8 @@ struct SettingsView: View {
     @State private var lastBackupAt: Date?
     @State private var showingDataSafety = false
     @State private var choosingBackupFolder = false
+    /// 切换语言后强制重绘设置窗口自身，否则这个 sheet 还是旧语言
+    @State private var languageRefreshTrigger = false
     @State private var errorMessage: String?
 
     var body: some View {
@@ -241,7 +243,7 @@ struct SettingsView: View {
     private var receiptForm: some View {
         Section {
             Stepper(value: $settings.warrantyDays, in: 0...365) {
-                LabeledContent("保修天数", value: settings.warrantyDays == 0 ? "不保修" : "\(settings.warrantyDays) 天")
+                LabeledContent("保修天数", value: settings.warrantyDays == 0 ? "不保修" : String(localized: "\(settings.warrantyDays) 天"))
             }
             TextField("附加说明", text: $settings.footnote, prompt: Text("可选，印在凭证条款最上方"))
         } header: {
@@ -269,7 +271,7 @@ struct SettingsView: View {
                 Text(settings.footnote.isEmpty ? "（无附加说明）" : settings.footnote)
                     .font(Token.Typography.caption)
                     .foregroundStyle(settings.footnote.isEmpty ? Token.Ink.tertiary : Token.Ink.primary)
-                Text(settings.warrantyDays == 0 ? "保修：不保修" : "保修：\(settings.warrantyDays) 天")
+                Text(settings.warrantyDays == 0 ? "保修：不保修" : String(localized: "保修：\(settings.warrantyDays) 天"))
                     .font(Token.Typography.caption)
                     .foregroundStyle(Token.Ink.secondary)
             }
@@ -325,9 +327,9 @@ struct SettingsView: View {
         }
 
         Section {
-            ruleRow("库龄警戒", "\(Item.overdueDays) 天")
-            ruleRow("电池偏弱", "健康 < \(Item.weakHealth)%")
-            ruleRow("循环偏高", "≥ \(Item.highCycles) 次")
+            ruleRow("库龄警戒", String(localized: "\(Item.overdueDays) 天"))
+            ruleRow("电池偏弱", String(localized: "健康 < \(Item.weakHealth)%"))
+            ruleRow("循环偏高", String(localized: "≥ \(Item.highCycles) 次"))
         } header: {
             Text("待办口径")
         } footer: {
@@ -372,14 +374,14 @@ struct SettingsView: View {
         }
 
         Section("当前数据") {
-            LabeledContent("机器", value: "\(itemCount) 台")
-            LabeledContent("单据", value: "\(orderCount) 张")
+            LabeledContent("机器", value: String(localized: "\(itemCount) 台"))
+            LabeledContent("单据", value: String(localized: "\(orderCount) 张"))
         }
 
         Section {
             Toggle("每天首次启动自动备份", isOn: $settings.autoBackupEnabled)
             Stepper(value: $settings.backupRetention, in: 3...60, step: 1) {
-                LabeledContent("保留份数", value: "\(settings.backupRetention) 份")
+                LabeledContent("保留份数", value: String(localized: "\(settings.backupRetention) 份"))
             }
             LabeledContent("备份目录") {
                 Text(backupFolder?.path ?? "未设置")
@@ -404,7 +406,7 @@ struct SettingsView: View {
         } footer: {
             Text(backupFolder == nil
                  ? "还没选目录。macOS 沙盒不允许直接写「文稿」，必须由你在文件面板里授权一次，App 之后才能持续写入。"
-                 : "每天首次启动写一份快照，只保留最新 \(settings.backupRetention) 份，更早的自动删除。")
+                 : String(localized: "每天首次启动写一份快照，只保留最新 \(settings.backupRetention) 份，更早的自动删除。"))
         }
 
         Section("导出与恢复") {
@@ -423,6 +425,29 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var appearanceForm: some View {
+        Section {
+            // 语言切换放在外观旁边：两者都是「界面长什么样」，
+            // 不塞进「店铺」那种跟账目有关的栏里。
+            Picker("语言", selection: Binding(
+                get: { settings.languagePreference },
+                set: { newValue in
+                    settings.language = newValue.rawValue
+                    // 立刻生效：写入 AppleLanguages 并重建视图树
+                    AppLanguage.set(newValue)
+                    languageRefreshTrigger.toggle()
+                }
+            )) {
+                ForEach(AppLanguage.allCases) { option in
+                    Text(option.label).tag(option)
+                }
+            }
+            .pickerStyle(.segmented)
+        } header: {
+            Text("语言")
+        } footer: {
+            Text("「跟随系统」按 macOS 首选语言决定。切换后立即生效，不需要重启 App。")
+        }
+
         Section {
             // 用分段控件而不是下拉：三个选项都是即时预览的，分段能让它们在眼前
             // 一次看全，改变后整个窗口立刻跟着换，不用退出设置去验证。

@@ -22,14 +22,14 @@ struct CustomersKpiStrip: View {
     private var repeatRate: String {
         guard !customers.isEmpty else { return "暂无客户" }
         let repeaters = customers.filter { $0.orderCount > 1 }.count
-        return "复购 \((Decimal(repeaters) / Decimal(customers.count) * 100).rounded(0))%"
+        return String(localized: "复购 \((Decimal(repeaters) / Decimal(customers.count) * 100).rounded(0))%")
     }
 
     var body: some View {
         HStack(spacing: Token.Space.m) {
             StatCard(
                 title: "客户数",
-                value: "\(customers.count) 位",
+                value: String(localized: "\(customers.count) 位"),
                 systemImage: "person.2.fill",
                 tone: .brand,
                 delta: repeatRate
@@ -39,7 +39,7 @@ struct CustomersKpiStrip: View {
                 value: revenue.mmk,
                 systemImage: "creditcard.fill",
                 tone: .ok,
-                delta: "\(customers.reduce(0) { $0 + $1.machineCount }) 台"
+                delta: String(localized: "\(customers.reduce(0) { $0 + $1.machineCount }) 台")
             )
             StatCard(
                 title: "平均客单价",
@@ -84,7 +84,7 @@ struct CustomersView: View {
 
             table
 
-            TableFooter(leading: "共 \(customers.count) 位", trailing: footerTrailing)
+            TableFooter(leading: String(localized: "共 \(customers.count) 位"), trailing: footerTrailing)
         }
     }
 
@@ -100,7 +100,7 @@ struct CustomersView: View {
             .width(min: 118, ideal: 140)
 
             TableColumn("购买次数") { customer in
-                Text("\(customer.orderCount) 次")
+                Text(String(localized: "\(customer.orderCount) 次"))
                     .font(Token.Typography.money)
                     .foregroundStyle(Token.Ink.secondary)
             }
@@ -112,7 +112,7 @@ struct CustomersView: View {
                         .font(Token.Typography.money)
                         .foregroundStyle(Token.Ink.primary)
                     if customer.outstanding > 0 {
-                        Text("欠 \(customer.outstanding.mmk)")
+                        Text(String(localized: "欠 \(customer.outstanding.mmk)"))
                             .font(Token.Typography.caption)
                             .foregroundStyle(Token.Status.warn)
                     }
@@ -133,7 +133,7 @@ struct CustomersView: View {
                     Text(customer.lastPurchase.formatted(date: .numeric, time: .omitted))
                         .font(Token.Typography.caption)
                         .foregroundStyle(Token.Ink.secondary)
-                    Text(customer.daysSinceLastPurchase == 0 ? "今天" : "\(customer.daysSinceLastPurchase) 天前")
+                    Text(customer.daysSinceLastPurchase == 0 ? "今天" : String(localized: "\(customer.daysSinceLastPurchase) 天前"))
                         .font(Token.Typography.caption)
                         .foregroundStyle(Token.Ink.tertiary)
                 }
@@ -220,11 +220,11 @@ struct CustomerDetailView: View {
                             valueTone: customer.profit < 0 ? .danger : .ok
                         )
                         KeyValueRow(label: "毛利率", value: customer.marginRate.map { "\(Money.text($0))%" } ?? "—")
-                        KeyValueRow(label: "单据数", value: "\(customer.orderCount) 张")
-                        KeyValueRow(label: "台数", value: "\(customer.machineCount) 台")
+                        KeyValueRow(label: "单据数", value: String(localized: "\(customer.orderCount) 张"))
+                        KeyValueRow(label: "台数", value: String(localized: "\(customer.machineCount) 台"))
                     }
 
-                    PanelSection(title: "历史单据", trailing: "\(customerOrders.count) 张") {
+                    PanelSection(title: "历史单据", trailing: String(localized: "\(customerOrders.count) 张")) {
                         ForEach(customerOrders) { order in
                             HStack(spacing: Token.Space.s) {
                                 VStack(alignment: .leading, spacing: 1) {

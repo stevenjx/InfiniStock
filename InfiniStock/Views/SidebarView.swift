@@ -226,7 +226,7 @@ private struct SidebarRow: View {
                             isSelected ? Token.Ink.onAccent.opacity(0.18) : Token.Surface.header,
                             in: .capsule
                         )
-                        .accessibilityLabel(Text("\(badge) 项"))
+                        .accessibilityLabel(Text(String(localized: "\(badge) 项")))
                 }
             }
             .padding(.horizontal, Token.Space.s)

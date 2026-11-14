@@ -97,7 +97,7 @@ struct ItemDetailView: View {
     }
 
     private func performDelete() async {
-        let passed = await BiometricGate.authenticate(reason: "删除机器 \(item.serialNumber)")
+        let passed = await BiometricGate.authenticate(reason: String(localized: "删除机器 \(item.serialNumber)"))
         guard passed else {
             errorMessage = "身份验证未通过，删除已取消"
             return
@@ -111,7 +111,7 @@ struct ItemDetailView: View {
 
     private func performVoid() async {
         guard let order = item.order else { return }
-        let passed = await BiometricGate.authenticate(reason: "撤销销售单 \(order.number)")
+        let passed = await BiometricGate.authenticate(reason: String(localized: "撤销销售单 \(order.number)"))
         guard passed else {
             errorMessage = "身份验证未通过，撤销已取消"
             return
@@ -203,7 +203,7 @@ struct ItemDetailContent: View {
                     Badge(text: "电池偏弱", tone: .warn, style: .filled)
                 }
                 if item.isOverdue {
-                    Badge(text: "库龄 \(item.ageInDays) 天", tone: .danger, style: .filled)
+                    Badge(text: String(localized: "库龄 \(item.ageInDays) 天"), tone: .danger, style: .filled)
                 }
             }
 
@@ -222,8 +222,8 @@ struct ItemDetailContent: View {
     /// 规格与电池压成一行。电池没测过就不写「未检测」——每台都挂个空值等于噪音
     private var identityCaption: String {
         var parts = [item.memory, item.storage, item.color].filter { !$0.isEmpty }
-        if item.batteryHealth > 0 { parts.append("电池 \(item.batteryHealth)%") }
-        if item.batteryCycles > 0 { parts.append("\(item.batteryCycles) 次循环") }
+        if item.batteryHealth > 0 { parts.append(String(localized: "电池 \(item.batteryHealth)%")) }
+        if item.batteryCycles > 0 { parts.append(String(localized: "\(item.batteryCycles) 次循环")) }
         return parts.joined(separator: " · ")
     }
 
@@ -307,7 +307,7 @@ struct ItemDetailContent: View {
                 } else {
                     Button("采用") { adopt(advice) }
                         .controlSize(.small)
-                        .help("把标价改为 \(advice.suggestedPrice.mmk)")
+                        .help(String(localized: "把标价改为 \(advice.suggestedPrice.mmk)"))
                 }
             }
 
@@ -322,8 +322,8 @@ struct ItemDetailContent: View {
         var text = advice.explanation
         if item.listPrice > 0, gap != 0 {
             text += gap > 0
-                ? " · 当前比建议高 \(gap.mmk)"
-                : " · 当前比建议低 \((-gap).mmk)"
+                ? String(localized: " · 当前比建议高 \(gap.mmk)")
+                : String(localized: " · 当前比建议低 \((-gap).mmk)")
         }
         return text
     }
@@ -366,7 +366,7 @@ struct ItemDetailContent: View {
                 MetricCell(label: "总进价", value: item.landedCost.mmk)
                 MetricCell(label: "运费", value: item.shipping.mmk)
                 MetricCell(label: "进价", value: item.costCNY.cny)
-                MetricCell(label: "汇率", value: "1 元 = \(Money.text(item.exchangeRate))")
+                MetricCell(label: "汇率", value: String(localized: "1 元 = \(Money.text(item.exchangeRate))"))
                 MetricCell(label: "进价折缅币", value: item.costMMK.mmk)
                 // 汇率风险只对还没卖掉的机器有意义：卖出去之后，结汇这件事已经发生
                 if !isSold, let breakEven = item.breakEvenRate {
@@ -416,7 +416,7 @@ struct ItemDetailContent: View {
                     MetricCell(label: "收款方式", value: order.paymentMethod.rawValue)
                     MetricCell(label: "出库时间", value: (item.soldAt ?? order.createdAt).compactStamp)
                     if order.hasReturns {
-                        MetricCell(label: "售后", value: "本单已退 \(order.returnedCount) 台", tone: .warn)
+                        MetricCell(label: "售后", value: String(localized: "本单已退 \(order.returnedCount) 台"), tone: .warn)
                     }
                 }
             }
@@ -431,7 +431,7 @@ struct ItemDetailContent: View {
     private var priceHistorySection: some View {
         let changes = PriceAudit.history(for: item)
         if !changes.isEmpty {
-            PanelSection(title: "改价记录", trailing: "\(changes.count) 次") {
+            PanelSection(title: "改价记录", trailing: String(localized: "\(changes.count) 次")) {
                 VStack(spacing: 0) {
                     ForEach(Array(changes.prefix(6))) { change in
                         if change.id != changes.prefix(6).first?.id { Hairline() }
@@ -439,7 +439,7 @@ struct ItemDetailContent: View {
                     }
                     if changes.count > 6 {
                         Hairline()
-                        Text("还有 \(changes.count - 6) 次更早的记录")
+                        Text(String(localized: "还有 \(changes.count - 6) 次更早的记录"))
                             .font(Token.Typography.caption)
                             .foregroundStyle(Token.Ink.tertiary)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -470,7 +470,7 @@ struct ItemDetailContent: View {
                     .font(.system(size: 8))
                 Text(change.newPrice.mmk)
                 if let margin = change.marginAfter {
-                    Text("· 毛利率 \(Money.text(margin))%")
+                    Text(String(localized: "· 毛利率 \(Money.text(margin))%"))
                         .foregroundStyle(Token.Ink.tertiary)
                 }
             }
@@ -483,7 +483,7 @@ struct ItemDetailContent: View {
 
     private func marginText(_ profit: Decimal, base: Decimal) -> String {
         guard base > 0 else { return "—" }
-        return "毛利率 \((profit / base * 100).rounded(1))%"
+        return String(localized: "毛利率 \((profit / base * 100).rounded(1))%")
     }
 
     /// 当前汇率高于回本汇率 = 按今天结汇是亏的

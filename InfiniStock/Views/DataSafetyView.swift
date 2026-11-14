@@ -19,8 +19,8 @@ struct DataSafetyView: View {
     var body: some View {
         Form {
             Section("当前数据") {
-                LabeledContent("机器", value: "\(itemCount) 台")
-                LabeledContent("单据", value: "\(orderCount) 张")
+                LabeledContent("机器", value: String(localized: "\(itemCount) 台"))
+                LabeledContent("单据", value: String(localized: "\(orderCount) 张"))
             }
 
             Section("导出") {
@@ -56,7 +56,7 @@ struct DataSafetyView: View {
                 if backupFolder != nil {
                     Button("立即备份一次") { runBackup() }
                 }
-                Text("每天首次启动自动备份一次（可在设置里关闭），保留最近 \(ShopSettings.load().backupRetention) 份。目录由你在系统面板中授权，App 之后才能持续写入。")
+                Text(String(localized: "每天首次启动自动备份一次（可在设置里关闭），保留最近 \(ShopSettings.load().backupRetention) 份。目录由你在系统面板中授权，App 之后才能持续写入。"))
                     .font(.caption)
                     .foregroundStyle(Token.Ink.secondary)
             }
@@ -148,7 +148,7 @@ struct DataSafetyView: View {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
             try data.write(to: url, options: .atomic)
-            message = "已导出到 \(url.lastPathComponent)"
+            message = String(localized: "已导出到 \(url.lastPathComponent)")
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -161,7 +161,7 @@ struct DataSafetyView: View {
         }
         do {
             let url = try BackupService.writeBackup(from: modelContext, into: folder)
-            message = "已备份 \(url.lastPathComponent)"
+            message = String(localized: "已备份 \(url.lastPathComponent)")
             refresh()
         } catch {
             errorMessage = error.localizedDescription

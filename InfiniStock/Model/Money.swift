@@ -43,7 +43,9 @@ enum Money {
     static func kyat(_ value: Decimal) -> String {
         let rounded = value.rounded(2)
         let body = kyatFormatter.string(from: NSDecimalNumber(decimal: rounded)) ?? "0"
-        return "K " + body
+        // 符号跟随界面语言：中文读者习惯看 K，英文读者认 MMK 这个 ISO 代码。
+        // 数字本身不变，改的只是前缀。
+        return AppLanguage.current.kyatPrefix + body
     }
 }
 

@@ -52,7 +52,7 @@ struct ReceiptSheet: View {
             }
             pdfData = data
             let url = FileManager.default.temporaryDirectory
-                .appendingPathComponent("凭证-\(order.number).pdf")
+                .appendingPathComponent(String(localized: "凭证-\(order.number).pdf"))
             if (try? data.write(to: url)) != nil {
                 fileURL = url
             }
@@ -80,7 +80,7 @@ struct ReceiptSheet: View {
         guard let pdfData else { return }
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.pdf]
-        panel.nameFieldStringValue = "凭证-\(order.number).pdf"
+        panel.nameFieldStringValue = String(localized: "凭证-\(order.number).pdf")
         panel.canCreateDirectories = true
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {

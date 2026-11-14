@@ -59,7 +59,7 @@ struct OrderDetailView: View {
                         }
                     }
 
-                    PanelSection(title: "机器", trailing: "\(order.itemList.count) 台") {
+                    PanelSection(title: "机器", trailing: String(localized: "\(order.itemList.count) 台")) {
                         if order.itemList.isEmpty {
                             Text("此单机器已全部退回")
                                 .font(Token.Typography.caption)
@@ -95,7 +95,7 @@ struct OrderDetailView: View {
                 }
                 Spacer(minLength: 0)
                 if order.isOutstanding {
-                    Text("未收 \(order.outstanding.mmk)")
+                    Text(String(localized: "未收 \(order.outstanding.mmk)"))
                         .font(Token.Typography.caption)
                         .foregroundStyle(Token.Status.warn)
                 }

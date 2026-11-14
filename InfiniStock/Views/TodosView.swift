@@ -25,10 +25,10 @@ struct TodosKpiStrip: View {
         HStack(spacing: Token.Space.m) {
             StatCard(
                 title: "待办",
-                value: "\(entries.count) 项",
+                value: String(localized: "\(entries.count) 项"),
                 systemImage: "checklist",
                 tone: entries.isEmpty ? .ok : .warn,
-                delta: entries.isEmpty ? "全部处理完了" : "\(kindCount) 类问题",
+                delta: entries.isEmpty ? "全部处理完了" : String(localized: "\(kindCount) 类问题"),
                 deltaTone: entries.isEmpty ? .ok : .warn
             )
             StatCard(
@@ -36,7 +36,7 @@ struct TodosKpiStrip: View {
                 value: TodoCenter.involvedCost(entries).mmk,
                 systemImage: "banknote.fill",
                 tone: .brand,
-                delta: "\(TodoCenter.involvedCount(entries)) 台机器"
+                delta: String(localized: "\(TodoCenter.involvedCount(entries)) 台机器")
             )
             StatCard(
                 title: "应收未收",
@@ -228,7 +228,7 @@ struct TodosView: View {
         } else {
             EmptyState(
                 title: "今天没有待办",
-                message: "在库机器都已定价、电池正常、库龄在 \(Item.overdueDays) 天以内，批次运费摊完了，也没有快到期的保修",
+                message: String(localized: "在库机器都已定价、电池正常、库龄在 \(Item.overdueDays) 天以内，批次运费摊完了，也没有快到期的保修"),
                 systemImage: "checkmark.seal"
             )
         }

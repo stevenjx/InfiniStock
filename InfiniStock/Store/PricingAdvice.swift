@@ -76,7 +76,7 @@ struct PricingAdvice: Equatable {
     /// 刻意不报反推出来的原始金额（如 K 1,843,529）——它和取整后的建议价并排出现，
     /// 只会让人多一个"为什么对不上"的疑问。
     var explanation: String {
-        var text = "目标毛利率 \(targetMarginPercent)% 反推"
+        var text = String(localized: "目标毛利率 \(targetMarginPercent)% 反推")
         if markdownPercent > 0 {
             text += "，库龄 \(ageInDays) 天再降 \(markdownPercent)%"
         }

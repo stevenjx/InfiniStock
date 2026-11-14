@@ -69,7 +69,7 @@ struct IntakeSheet: View {
                         TextField("汇率（1 元 = ? 缅币）", text: $draft.exchangeRate)
                             .decimalKeyboard()
                         if settings.defaultExchangeRate > 0 {
-                            Button("上次 \(Money.text(settings.defaultExchangeRate))") {
+                            Button(String(localized: "上次 \(Money.text(settings.defaultExchangeRate))")) {
                                 draft.exchangeRate = Money.text(settings.defaultExchangeRate)
                             }
                             .font(.caption)
@@ -140,7 +140,7 @@ struct IntakeSheet: View {
             let savedSerial = item.serialNumber
             rememberRate()
             resetDraft()
-            savedMessage = "已入库 \(savedSerial)"
+            savedMessage = String(localized: "已入库 \(savedSerial)")
             Task {
                 try? await Task.sleep(for: .seconds(1.2))
                 savedMessage = nil

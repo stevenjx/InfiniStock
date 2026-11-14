@@ -53,7 +53,7 @@ struct FindItemIntent: AppIntent {
     static let description = IntentDescription("按序列号查询机器型号、状态与总进价")
     static let openAppWhenRun = false
 
-    @Parameter(title: "序列号")
+    @Parameter(title: "Serial number")
     var serial: String
 
     static var parameterSummary: some ParameterSummary {
