@@ -23,6 +23,7 @@ struct MacModel: Codable, Hashable, Identifiable {
         case pro = "MacBook Pro"
 
         var id: String { rawValue }
+        /// 产品线名是英文专有名词（MacBook Air / Pro），不需要翻译
         var label: String { rawValue }
     }
 

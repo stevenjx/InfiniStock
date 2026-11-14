@@ -9,6 +9,16 @@ enum ReportRange: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    /// rawValue 是中文且被用作导出文件名等场景，显示走本地化
+    var title: LocalizedStringResource {
+        switch self {
+        case .thisMonth: "本月"
+        case .lastMonth: "上月"
+        case .last30: "近 30 天"
+        case .thisYear: "今年"
+        }
+    }
+
     func bounds(now: Date = .now, calendar: Calendar = .current) -> (start: Date, end: Date) {
         let today = calendar.startOfDay(for: now)
 

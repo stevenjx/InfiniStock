@@ -23,7 +23,7 @@ struct ItemEntity: AppEntity {
         id = item.serialNumber
         modelName = item.modelName
         serialNumber = item.serialNumber
-        status = item.status.label
+        status = String(localized: item.status.label)
     }
 }
 

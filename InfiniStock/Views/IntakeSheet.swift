@@ -41,7 +41,7 @@ struct IntakeSheet: View {
                     TextField("颜色（可选）", text: $draft.color)
                     Picker("成色", selection: $draft.condition) {
                         ForEach(ItemCondition.allCases) { condition in
-                            Text(condition.rawValue).tag(condition)
+                            Text(LocalizedStringKey(condition.rawValue)).tag(condition)
                         }
                     }
                     HStack(spacing: Token.Space.m) {

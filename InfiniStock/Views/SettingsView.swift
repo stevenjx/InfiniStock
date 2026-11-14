@@ -16,7 +16,18 @@ enum SettingsPane: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    var title: String { rawValue }
+    /// rawValue 是中文且被用作存储/匹配键，不能直接显示；
+    /// 显示走这条本地化路径。
+    var title: LocalizedStringResource {
+        switch self {
+        case .shop: "店铺"
+        case .receipt: "单据凭证"
+        case .pricing: "定价与汇率"
+        case .appearance: "外观"
+        case .backup: "数据与备份"
+        case .about: "关于"
+        }
+    }
 
     var icon: String {
         switch self {
@@ -29,7 +40,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         }
     }
 
-    var subtitle: String {
+    var subtitle: LocalizedStringResource {
         switch self {
         case .shop: "抬头信息与开单默认值"
         case .receipt: "凭证上印什么、保修多久"
@@ -228,7 +239,7 @@ struct SettingsView: View {
         Section("开单默认值") {
             Picker("收款方式", selection: $settings.defaultPaymentMethod) {
                 ForEach(PaymentMethod.allCases) { method in
-                    Text(method.rawValue).tag(method.rawValue)
+                    Text(method.title).tag(method.rawValue)
                 }
             }
             Text("新建出库单时预先选中的收款方式，开单时仍可改。")

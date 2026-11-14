@@ -12,7 +12,7 @@ enum SpotlightIndexer {
         attributes.contentDescription = [
             item.serialNumber,
             item.specSummary,
-            item.status.label,
+            String(localized: item.status.label),
         ]
         .filter { !$0.isEmpty }
         .joined(separator: " · ")

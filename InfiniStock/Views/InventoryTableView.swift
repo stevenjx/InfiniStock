@@ -173,7 +173,7 @@ struct InventoryTableView: View {
             .width(min: 68, ideal: 76)
 
             TableColumn("成色") { item in
-                Text(item.condition.rawValue)
+                Text(item.condition.label)
                     .font(Token.Typography.caption)
                     .foregroundStyle(Token.Ink.secondary)
                     .lineLimit(1)
@@ -211,7 +211,7 @@ struct InventoryTableView: View {
 
             TableColumn("库龄") { item in
                 if item.isOverdue {
-                    Badge(text: String(localized: "\(item.ageInDays) 天"), tone: .danger, style: .filled)
+                    Badge(text: "\(item.ageInDays) 天", tone: .danger, style: .filled)
                 } else {
                     Text(String(localized: "\(item.ageInDays) 天"))
                         .font(Token.Typography.money)
@@ -297,7 +297,7 @@ struct InventoryTableView: View {
                 .foregroundStyle(Token.Ink.tertiary)
             Picker("排序", selection: $sortChoice) {
                 ForEach(SortChoice.allCases) { choice in
-                    Text(choice.rawValue).tag(choice)
+                    Text(LocalizedStringKey(choice.rawValue)).tag(choice)
                 }
             }
             .pickerStyle(.menu)

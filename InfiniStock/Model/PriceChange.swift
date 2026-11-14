@@ -57,7 +57,7 @@ enum PriceChangeSource: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    var label: String {
+    var label: LocalizedStringResource {
         switch self {
         case .edit: "手动改价"
         case .advice: "采用建议价"

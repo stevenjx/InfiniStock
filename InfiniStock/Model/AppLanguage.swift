@@ -19,9 +19,9 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     /// 语言菜单里的名称，两种语言下都写成自己那一套——
     /// 中文界面里英文选项就叫 English，英文界面里中文选项就叫「简体中文」。
     /// 这是各家系统设置的通行做法：语言名不翻译成当前界面语言。
-    var label: String {
+    var label: LocalizedStringResource {
         switch self {
-        case .system: String(localized: "跟随系统")
+        case .system: "跟随系统"
         case .chinese: "简体中文"
         case .english: "English"
         }

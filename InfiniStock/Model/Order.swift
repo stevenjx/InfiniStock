@@ -72,7 +72,9 @@ final class Order {
     /// 全部机器都已退走（与"手工作废"区分开）
     var isFullyReturned: Bool { isVoided && hasReturns }
 
-    var statusLabel: String {
+    /// 返回本地化资源而不是 String：这四处文案要真的被翻译，
+    /// 提前拼成 String 会让 Text 跳过查表。
+    var statusLabel: LocalizedStringResource {
         if isFullyReturned { return "已全退" }
         if isVoided { return "已作废" }
         if hasReturns { return "部分退货" }

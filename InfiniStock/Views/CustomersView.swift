@@ -142,7 +142,7 @@ struct CustomersView: View {
 
             TableColumn("等级") { customer in
                 Badge(
-                    text: customer.tier.rawValue,
+                    text: customer.tier.title,
                     tone: tone(for: customer.tier),
                     style: customer.tier == .dormant ? .outline : .filled
                 )
@@ -204,7 +204,7 @@ struct CustomerDetailView: View {
                     PanelSection(title: "客户") {
                         KeyValueRow(label: "姓名", value: customer.name)
                         KeyValueRow(label: "电话", value: customer.contact)
-                        KeyValueRow(label: "等级", value: customer.tier.rawValue)
+                        KeyValueRow(label: "等级", value: customer.tier.title)
                         KeyValueRow(label: "最近型号", value: customer.lastModel)
                         KeyValueRow(label: "最近购买", value: customer.lastPurchase.compactStamp)
                     }

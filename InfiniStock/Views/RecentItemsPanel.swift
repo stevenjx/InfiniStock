@@ -73,7 +73,7 @@ private struct RecentRow: View {
                     .font(Token.Typography.money)
                     .foregroundStyle(Token.Ink.primary)
                 Badge(
-                    text: String(localized: "\(item.ageInDays) 天"),
+                    text: "\(item.ageInDays) 天",
                     tone: item.isOverdue ? .danger : .neutral,
                     style: item.isOverdue ? .filled : .outline
                 )

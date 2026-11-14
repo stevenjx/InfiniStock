@@ -9,6 +9,16 @@ enum CustomerTier: String, CaseIterable {
     case potential = "潜力"
     case dormant = "沉睡"
 
+    /// rawValue 是中文，用作分组键；显示走本地化
+    var title: LocalizedStringResource {
+        switch self {
+        case .vip: "VIP"
+        case .active: "活跃"
+        case .potential: "潜力"
+        case .dormant: "沉睡"
+        }
+    }
+
     /// VIP 门槛：累计消费 2000 万缅币（约 4–5 台 MacBook）
     static let vipRevenue: Decimal = 20_000_000
     /// 沉睡门槛：超过 90 天没有新单

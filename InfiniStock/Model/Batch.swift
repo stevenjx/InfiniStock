@@ -6,6 +6,14 @@ enum AllocationMethod: String, CaseIterable, Identifiable {
     case byCount = "按台数均摊"
 
     var id: String { rawValue }
+
+    /// rawValue 是中文，存进批次作为记录值；显示走本地化
+    var title: LocalizedStringResource {
+        switch self {
+        case .byValue: "按货值分摊"
+        case .byCount: "按台数均摊"
+        }
+    }
 }
 
 /// 批次推进到哪一步。判定只看数据，不存状态字段，避免和实际分摊结果打架。
@@ -13,6 +21,15 @@ enum BatchStage: String {
     case empty = "待入库"
     case pending = "待分摊"
     case settled = "已入库"
+
+    /// rawValue 是中文，用作匹配键；显示走本地化
+    var title: LocalizedStringResource {
+        switch self {
+        case .empty: "待入库"
+        case .pending: "待分摊"
+        case .settled: "已入库"
+        }
+    }
 }
 
 /// 一批进货。汇率与缅币运费在批次上锁定，逐台成本由分摊算出。

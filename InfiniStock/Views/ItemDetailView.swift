@@ -203,7 +203,7 @@ struct ItemDetailContent: View {
                     Badge(text: "电池偏弱", tone: .warn, style: .filled)
                 }
                 if item.isOverdue {
-                    Badge(text: String(localized: "库龄 \(item.ageInDays) 天"), tone: .danger, style: .filled)
+                    Badge(text: "库龄 \(item.ageInDays) 天", tone: .danger, style: .filled)
                 }
             }
 
@@ -392,7 +392,7 @@ struct ItemDetailContent: View {
                 MetricCell(label: "内存", value: item.memory)
                 MetricCell(label: "存储", value: item.storage)
                 MetricCell(label: "颜色", value: item.color)
-                MetricCell(label: "成色", value: item.condition.rawValue)
+                MetricCell(label: "成色", value: item.condition.label)
                 MetricCell(
                     label: "电池健康",
                     value: item.batteryHealth > 0 ? item.batteryHealthText : "未检测",
@@ -413,7 +413,7 @@ struct ItemDetailContent: View {
                 MetricGrid {
                     MetricCell(label: "客户", value: order.customerName)
                     MetricCell(label: "联系方式", value: order.customerContact)
-                    MetricCell(label: "收款方式", value: order.paymentMethod.rawValue)
+                    MetricCell(label: "收款方式", value: order.paymentMethod.title)
                     MetricCell(label: "出库时间", value: (item.soldAt ?? order.createdAt).compactStamp)
                     if order.hasReturns {
                         MetricCell(label: "售后", value: String(localized: "本单已退 \(order.returnedCount) 台"), tone: .warn)

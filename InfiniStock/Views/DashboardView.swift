@@ -274,7 +274,7 @@ struct DashboardContent: View {
                             Circle()
                                 .fill(paymentColor(slice.method))
                                 .frame(width: 7, height: 7)
-                            Text(slice.method.rawValue)
+                            Text(slice.method.title)
                                 .font(Token.Typography.caption)
                                 .foregroundStyle(Token.Ink.secondary)
                             Spacer()

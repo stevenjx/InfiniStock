@@ -173,7 +173,7 @@ enum BackupService {
                 item.storage,
                 item.color,
                 item.condition.rawValue,
-                item.status.label,
+                String(localized: item.status.label),
                 item.batteryHealth > 0 ? String(item.batteryHealth) : "",
                 item.batteryCycles > 0 ? String(item.batteryCycles) : "",
                 item.costCNY.plainString,

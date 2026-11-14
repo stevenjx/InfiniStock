@@ -23,7 +23,7 @@ struct ReportView: View {
         VStack(spacing: 0) {
             FilterBar {
                 FilterPillGroup(
-                    options: ReportRange.allCases.map { PillOption(value: $0, title: $0.rawValue) },
+                    options: ReportRange.allCases.map { PillOption(value: $0, title: $0.title) },
                     selection: range
                 ) { range = $0 }
 
@@ -220,7 +220,7 @@ struct ReportView: View {
                             Circle()
                                 .fill(color(for: slice.method))
                                 .frame(width: 7, height: 7)
-                            Text(slice.method.rawValue)
+                            Text(slice.method.title)
                                 .font(Token.Typography.body)
                                 .foregroundStyle(Token.Ink.primary)
                             Spacer(minLength: Token.Space.s)

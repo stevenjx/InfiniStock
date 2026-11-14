@@ -196,7 +196,9 @@ struct SidebarView: View {
 
 /// 单行。悬停给一层极浅底色，否则未选中行在浅色侧栏里没有边界感。
 private struct SidebarRow: View {
-    let title: String
+    /// 接受 LocalizedStringResource：侧栏文案来自 SidebarSection.label，
+    /// 那里返回的就是这个类型，早转成 String 会跳过本地化查找。
+    let title: LocalizedStringResource
     let icon: String
     let isSelected: Bool
     var badge: Int?

@@ -10,6 +10,7 @@ struct MacPreset: Identifiable {
     let memory: String
     let storage: String
 
+    /// 由型号与规格拼出来，不含需要翻译的文案，保持 String
     var label: String { "\(modelName) · \(memory)/\(storage)" }
 }
 

@@ -41,7 +41,7 @@ struct ItemEditSheet: View {
                 Section("机况") {
                     Picker("成色", selection: $condition) {
                         ForEach(ItemCondition.allCases) { value in
-                            Text(value.rawValue).tag(value)
+                            Text(LocalizedStringKey(value.rawValue)).tag(value)
                         }
                     }
                     TextField("电池健康 %（留空为未检测）", text: $healthText)

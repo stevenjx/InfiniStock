@@ -38,7 +38,7 @@ struct SelectionSummaryView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            PanelHeader(title: String(localized: "已选 \(items.count) 台"), subtitle: "多选汇总")
+            PanelHeader(title: "已选 \(items.count) 台", subtitle: "多选汇总")
 
             ScrollView {
                 VStack(spacing: Token.Space.m) {

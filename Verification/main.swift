@@ -832,7 +832,7 @@ struct Verify {
         check("退货台数累计", rOrder.returnedCount == 1)
         check("退货金额累计", rOrder.returnedAmount == 4200)
         check("单据仍有效", !rOrder.isVoided)
-        check("状态显示部分退货", rOrder.statusLabel == "部分退货", rOrder.statusLabel)
+        check("状态显示部分退货", String(localized: rOrder.statusLabel) == "部分退货", String(localized: rOrder.statusLabel))
 
         // 退回的机器应回到在库且清空成交信息
         check("退回机器回到在库", r3.status == .inStock)
@@ -855,7 +855,7 @@ struct Verify {
         check("全退后毛利归零", rOrder.profit == 0, "\(rOrder.profit)")
         check("全退后折扣归零", rOrder.discount == 0 && rOrder.rounding == 0)
         check("全退后标记作废", rOrder.isVoided)
-        check("全退状态可区分", rOrder.statusLabel == "已全退", rOrder.statusLabel)
+        check("全退状态可区分", String(localized: rOrder.statusLabel) == "已全退", String(localized: rOrder.statusLabel))
         check("全退后库存全部恢复",
               [r1, r2, r3].allSatisfy { $0.status == .inStock })
 
@@ -1336,7 +1336,8 @@ struct Verify {
         } catch {
             check("零价成交被拦截", true)
         }
-        check("零价成交不改变机器状态", zeroPriceItem.status == .inStock, zeroPriceItem.status.label)
+        check("零价成交不改变机器状态", zeroPriceItem.status == .inStock,
+              String(localized: zeroPriceItem.status.label))
 
         // MARK: 赊账与收款
 

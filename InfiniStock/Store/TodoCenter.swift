@@ -17,7 +17,7 @@ enum TodoKind: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     /// 列表徽章用的短名，长名字塞不进一列
-    var title: String {
+    var title: LocalizedStringResource {
         switch self {
         case .pendingAllocation: "待分摊"
         case .outstanding: "应收未收"
@@ -32,7 +32,7 @@ enum TodoKind: String, CaseIterable, Identifiable {
     }
 
     /// 这条待办到底要人做什么
-    var actionHint: String {
+    var actionHint: LocalizedStringResource {
         switch self {
         case .pendingAllocation: "分摊运费"
         case .outstanding: "催收"

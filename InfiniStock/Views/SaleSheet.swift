@@ -322,7 +322,7 @@ struct SaleSheet: View {
                         .font(Token.Typography.caption)
                         .foregroundStyle(Token.Ink.secondary)
                     FilterPillGroup(
-                        options: PaymentMethod.allCases.map { PillOption(value: $0, title: $0.rawValue) },
+                        options: PaymentMethod.allCases.map { PillOption(value: $0, title: $0.title) },
                         selection: paymentMethod
                     ) { paymentMethod = $0 }
                     Spacer(minLength: 0)

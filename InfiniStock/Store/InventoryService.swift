@@ -222,7 +222,7 @@ enum InventoryService {
     /// 删除误录入的机器。只允许删在库且无单据关联的整机，
     /// 已售出的必须先退货或作废单据，否则会留下"有单无机"的坏数据。
     static func delete(_ item: Item, in context: ModelContext) throws {
-        guard item.status == .inStock else { throw InventoryError.cannotDelete(item.serialNumber, item.status.label) }
+        guard item.status == .inStock else { throw InventoryError.cannotDelete(item.serialNumber, String(localized: item.status.label)) }
         guard item.order == nil else { throw InventoryError.cannotDelete(item.serialNumber, "仍挂在单据上") }
 
         let serial = item.serialNumber

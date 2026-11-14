@@ -117,6 +117,16 @@ enum PaymentMethod: String, Codable, CaseIterable, Identifiable {
     case other = "其他"
 
     var id: String { rawValue }
+
+    /// rawValue 是中文，写入单据作为记录值；显示走本地化
+    var title: LocalizedStringResource {
+        switch self {
+        case .cash: "现金"
+        case .transfer: "转账"
+        case .card: "刷卡"
+        case .other: "其他"
+        }
+    }
 }
 
 /// 界面外观。auto 交给系统，跟随 macOS 的浅色/深色切换。
@@ -127,7 +137,7 @@ enum AppearancePreference: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    var label: String {
+    var label: LocalizedStringResource {
         switch self {
         case .auto: "自动"
         case .light: "浅色"

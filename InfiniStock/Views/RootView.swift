@@ -11,7 +11,7 @@ enum SidebarSection: Hashable {
     case customers
     case report
 
-    var label: String {
+    var label: LocalizedStringResource {
         switch self {
         case .todos: "待办"
         case .stock(_):

@@ -7,7 +7,8 @@ struct Badge: View {
         case filled
     }
 
-    let text: String
+    /// 文案常直接来自枚举 label，保持本地化资源类型
+    let text: LocalizedStringResource
     let tone: Tone
     var style: Style = .outline
 
@@ -32,6 +33,8 @@ struct Badge: View {
 
 /// 双行单元格：主标题 + 灰色副标题（序列号等）。
 struct CellTitle: View {
+    /// 标题既可能是固定文案（型号、批次名），也可能是用户数据（客户姓名）。
+    /// 前者要翻译，后者必须原样显示，所以保留 String。
     let title: String
     var subtitle: String?
     var monospacedSubtitle = true
@@ -56,7 +59,8 @@ struct CellTitle: View {
 
 /// KPI 卡：图标 + 标签 + 数字 + 可选涨跌行。
 struct StatCard: View {
-    let title: String
+    /// 标题可能来自筛选枚举的 label，保持本地化资源类型
+    let title: LocalizedStringResource
     let value: String
     var systemImage: String
     var tone: Tone = .brand
@@ -133,9 +137,29 @@ struct SectionCard<Content: View>: View {
 
 /// 键值行，详情页与检查器统一用它，保证左右对齐一致。
 struct KeyValueRow: View {
-    let label: String
-    let value: String
+    let label: LocalizedStringResource
+    let value: LocalizedStringResource
     var valueTone: Tone?
+
+    /// 动态值（金额、日期、序列号）不是翻译键，走这个重载原样显示，
+    /// 免得把用户数据当成 key 去查表。
+    init(label: LocalizedStringResource, value: String, valueTone: Tone? = nil) {
+        self.label = label
+        self.value = LocalizedStringResource(stringLiteral: value)
+        self.valueTone = valueTone
+    }
+
+    init(label: LocalizedStringResource, value: LocalizedStringResource, valueTone: Tone? = nil) {
+        self.label = label
+        self.value = value
+        self.valueTone = valueTone
+    }
+
+    /// 空值统一显示成破折号，避免出现"标签在、值没了"的空洞
+    private var displayValue: String {
+        let text = String(localized: value)
+        return text.isEmpty ? "—" : text
+    }
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: Token.Space.m) {
@@ -143,7 +167,7 @@ struct KeyValueRow: View {
                 .font(Token.Typography.caption)
                 .foregroundStyle(Token.Ink.secondary)
                 .frame(width: 76, alignment: .leading)
-            Text(value.isEmpty ? "—" : value)
+            Text(displayValue)
                 .font(Token.Typography.body)
                 .foregroundStyle(valueTone?.color ?? Token.Ink.primary)
                 .textSelection(.enabled)
@@ -240,15 +264,34 @@ struct MetricGrid<Content: View>: View {
 /// 面板只有 340pt 宽，两个字段并排时放不下「标签 76pt + 值」的横向排布，只能竖排。
 struct MetricCell: View {
     let label: String
-    let value: String
+    let value: LocalizedStringResource
     var tone: Tone?
+
+    /// 动态值（金额、日期、序列号）不是翻译键，原样显示
+    init(label: String, value: String, tone: Tone? = nil) {
+        self.label = label
+        self.value = LocalizedStringResource(stringLiteral: value)
+        self.tone = tone
+    }
+
+    init(label: String, value: LocalizedStringResource, tone: Tone? = nil) {
+        self.label = label
+        self.value = value
+        self.tone = tone
+    }
+
+    /// 空值显示成破折号，避免有些格子只剩标签
+    private var metricText: String {
+        let text = String(localized: value)
+        return text.isEmpty ? "—" : text
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
             Text(label)
                 .font(.system(size: 10))
                 .foregroundStyle(Token.Ink.tertiary)
-            Text(value.isEmpty ? "—" : value)
+            Text(metricText)
                 .font(.system(size: 12.5))
                 .foregroundStyle(tone?.color ?? Token.Ink.primary)
                 .lineLimit(1)

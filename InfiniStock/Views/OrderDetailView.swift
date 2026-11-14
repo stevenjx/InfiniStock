@@ -27,7 +27,7 @@ struct OrderDetailView: View {
                         KeyValueRow(label: "单号", value: order.number)
                         KeyValueRow(label: "日期", value: order.createdAt.compactStamp)
                         KeyValueRow(label: "状态", value: order.statusLabel)
-                        KeyValueRow(label: "收款方式", value: order.paymentMethod.rawValue)
+                        KeyValueRow(label: "收款方式", value: order.paymentMethod.title)
                         KeyValueRow(label: "客户", value: order.customerName.isEmpty ? "—" : order.customerName)
                         KeyValueRow(label: "联系方式", value: order.customerContact.isEmpty ? "—" : order.customerContact)
                     }

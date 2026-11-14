@@ -122,3 +122,24 @@
 - 少数含嵌套引号的插值无法进 catalog（键里不允许内层引号），
   改写为 `String(format:String(localized: "...%@..."), ...)`。
 - 语言切换点：设置 → 外观 → 语言。写 `AppleLanguages` 并重建视图树，不重启。
+
+## 为什么"翻译全了"却还显示中文
+
+英文界面上出现中文，通常不是缺译文，而是**字符串在到达 `Text` 之前已经被转成了 `String`**：
+
+```swift
+var label: String { "库存管理" }   // 已经拼好，Text(label) 不会查表
+Text("库存管理")                   // 会查表，能翻
+```
+
+`Text("…")` 的参数是 `LocalizedStringKey`，才走本地化查找；`String` 会原样显示。
+所以规则是：**文案属性的返回类型用 `LocalizedStringResource`，界面组件接收它，只在真的需要
+String 的地方（存储、日志、导出、比较）才 `String(localized:)` 转换。**
+
+本次修掉的位置：
+- `SidebarSection.label`、`ItemStatus.label`、`ItemCondition.label`、`BatchStage.title`、
+  `AllocationMethod.title`、`CustomerTier.title`、`PaymentMethod.title`、`ReportRange.title`、
+  `OrderStatusFilter.title`、`SettingsPane.title`、`Order.statusLabel`
+- 组件：`PageHeader`、`PanelHeader`、`SidebarRow`、`Badge`、`StatCard`、`FilterPill`、
+  `KeyValueRow`、`MetricCell` 的文案参数改为 `LocalizedStringResource`
+- 动态值（金额、日期、客户姓名、序列号）保留 `String` 重载，避免把用户数据当翻译键

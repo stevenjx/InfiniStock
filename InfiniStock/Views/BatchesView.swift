@@ -123,7 +123,7 @@ struct BatchesView: View {
 
             TableColumn("状态") { batch in
                 Badge(
-                    text: batch.stage.rawValue,
+                    text: batch.stage.title,
                     tone: tone(for: batch.stage),
                     style: batch.stage == .settled ? .filled : .outline
                 )
@@ -188,7 +188,7 @@ struct BatchDetailView: View {
                         KeyValueRow(label: "名称", value: batch.name)
                         KeyValueRow(label: "供应商", value: batch.supplier)
                         KeyValueRow(label: "创建", value: batch.createdAt.compactStamp)
-                        KeyValueRow(label: "分摊方式", value: batch.allocation.rawValue)
+                        KeyValueRow(label: "分摊方式", value: batch.allocation.title)
                     }
 
                     PanelSection(title: "成本口径") {
@@ -197,7 +197,7 @@ struct BatchDetailView: View {
                         KeyValueRow(label: "已分摊", value: batch.allocatedShipping.mmk)
                         KeyValueRow(
                             label: "状态",
-                            value: batch.stage.rawValue,
+                            value: batch.stage.title,
                             valueTone: batch.stage == .pending ? .warn : nil
                         )
                         KeyValueRow(

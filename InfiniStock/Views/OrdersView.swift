@@ -76,6 +76,16 @@ struct OrdersView: View {
 
         var id: String { rawValue }
 
+        /// rawValue 是中文枚举值，用作匹配键；显示走本地化
+        var title: LocalizedStringResource {
+            switch self {
+            case .all: "全部"
+            case .active: "有效"
+            case .returned: "有退货"
+            case .voided: "已作废"
+            }
+        }
+
         func matches(_ order: Order) -> Bool {
             switch self {
             case .all: true
@@ -165,7 +175,7 @@ struct OrdersView: View {
     }
 
     private var statusOptions: [PillOption<OrderStatusFilter>] {
-        OrderStatusFilter.allCases.map { PillOption(value: $0, title: $0.rawValue) }
+        OrderStatusFilter.allCases.map { PillOption(value: $0, title: $0.title) }
     }
 
     private var footerLeading: String {

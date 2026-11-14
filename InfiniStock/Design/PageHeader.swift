@@ -9,7 +9,8 @@ struct PageHeaderSummary: Identifiable {
 }
 
 struct PageHeader<Actions: View>: View {
-    let title: String
+    /// 标题常来自枚举的 label（LocalizedStringResource），提前转 String 会跳过查表
+    let title: LocalizedStringResource
     var items: [PageHeaderSummary] = []
     @ViewBuilder var actions: Actions
 
@@ -49,7 +50,7 @@ struct PageHeader<Actions: View>: View {
 }
 
 extension PageHeader where Actions == EmptyView {
-    init(title: String, items: [PageHeaderSummary] = []) {
+    init(title: LocalizedStringResource, items: [PageHeaderSummary] = []) {
         self.init(title: title, items: items) { EmptyView() }
     }
 }

@@ -101,8 +101,8 @@ struct SearchField: View {
 /// 筛选胶囊的选项
 struct PillOption<Value: Hashable>: Identifiable {
     let value: Value
-    let title: String
-    var id: String { title }
+    let title: LocalizedStringResource
+    var id: String { String(localized: title) }
 }
 
 /// 一组胶囊筛选。选中项用实心强调色，和参考图一致。
@@ -133,7 +133,7 @@ struct FilterPillGroup<Value: Hashable>: View {
 }
 
 struct FilterPill: View {
-    let title: String
+    let title: LocalizedStringResource
     let isSelected: Bool
     let action: () -> Void
 
@@ -185,7 +185,7 @@ extension EnvironmentValues {
 
 /// 详情栏的标题条：与列表工具条同高、同底色，右栏因此不再是一摞悬空卡片。
 struct PanelHeader<Trailing: View>: View {
-    let title: String
+    let title: LocalizedStringResource
     var subtitle: String?
     @ViewBuilder var trailing: Trailing
 
@@ -227,7 +227,7 @@ struct PanelHeader<Trailing: View>: View {
 }
 
 extension PanelHeader where Trailing == EmptyView {
-    init(title: String, subtitle: String? = nil) {
+    init(title: LocalizedStringResource, subtitle: String? = nil) {
         self.init(title: title, subtitle: subtitle) { EmptyView() }
     }
 }
